@@ -6,6 +6,13 @@ import { toast } from "react-toastify"
 import { useAuth } from "../context/AuthContext"
 import { useNavigate } from "react-router-dom"
 
+import { Swiper, SwiperSlide } from "swiper/react"
+import { Navigation, Pagination } from "swiper/modules"
+
+import "swiper/css"
+import "swiper/css/navigation"
+import "swiper/css/pagination"
+
 function PropertyCard({ property, onClick }) {
 
   const [saved, setSaved] = useState(false)
@@ -13,7 +20,6 @@ function PropertyCard({ property, onClick }) {
   const { user } = useAuth()
   const navigate = useNavigate()
 
-  // Check if property already in wishlist
   useEffect(() => {
 
     if (!user) return
@@ -41,12 +47,10 @@ function PropertyCard({ property, onClick }) {
   }, [user, property._id])
 
 
-
   const toggleWishlist = async (e) => {
 
     e.stopPropagation()
 
-    // User not logged in
     if (!user) {
 
       localStorage.setItem("pendingWishlist", property._id)
@@ -88,64 +92,105 @@ function PropertyCard({ property, onClick }) {
 
   }
 
-
+  const images = property?.media?.images || []
 
   return (
     <div
       onClick={onClick}
-      className="cursor-pointer bg-white dark:bg-gray-900 rounded-3xl overflow-hidden shadow-md hover:shadow-2xl transition-all duration-500 group border border-gray-100 dark:border-gray-700 hover:-translate-y-1"
+      className="cursor-pointer bg-white dark:bg-gray-900 rounded-2xl overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-xl transition duration-300 group"
     >
 
       {/* IMAGE */}
       <div className="relative h-56 overflow-hidden">
 
-        <img
-          src={getImageUrl(property?.media?.images?.[0])}
-          alt={property?.title}
-          className="w-full h-full object-cover group-hover:scale-110 transition duration-700"
-        />
+        <Swiper
+          modules={[Navigation, Pagination]}
+          navigation
+          pagination={{ clickable: true }}
+          className="h-full"
+        >
 
-        {/* GRADIENT */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/10 to-transparent opacity-80"></div>
+          {images.length > 0 ? (
 
-        {/* PURPOSE */}
+            images.map((img, index) => (
+
+              <SwiperSlide key={index}>
+
+                <img
+                  src={getImageUrl(img)}
+                  alt={property?.title}
+                  className="w-full h-56 object-cover transition-transform duration-500 group-hover:scale-105"
+                />
+
+              </SwiperSlide>
+
+            ))
+
+          ) : (
+
+            <SwiperSlide>
+
+              <img
+                src="https://via.placeholder.com/400x300?text=No+Image"
+                alt="No property"
+                className="w-full h-56 object-cover"
+              />
+
+            </SwiperSlide>
+
+          )}
+
+        </Swiper>
+
+        {/* PURPOSE BADGE */}
         {property?.purpose && (
-          <span className="absolute top-4 left-4 bg-[#000080] text-white text-xs px-3 py-1 rounded-full shadow-lg tracking-wide">
+          <span className="absolute top-4 left-4 bg-blue-600 text-white text-xs font-medium px-3 py-1 rounded-full shadow-md z-10">
             {property.purpose}
           </span>
         )}
 
-        {/* WISHLIST */}
+        {/* WISHLIST BUTTON */}
         <button
           onClick={toggleWishlist}
-          className="absolute top-4 right-4 bg-white/90 dark:bg-gray-800 p-2 rounded-full shadow hover:scale-110 transition"
+          className="absolute top-4 right-4 bg-white/90 dark:bg-gray-800 backdrop-blur p-2 rounded-full shadow-md hover:scale-110 transition z-10"
         >
           <Heart
             size={18}
-            className={saved ? "text-red-500 fill-red-500" : "text-gray-500"}
+            className={
+              saved
+                ? "text-red-500 fill-red-500"
+                : "text-gray-500 dark:text-gray-300"
+            }
           />
         </button>
 
-        {/* PRICE */}
-        <div className="absolute bottom-4 left-4 bg-white/90 dark:bg-gray-800/90 backdrop-blur-md px-4 py-1 rounded-xl shadow text-[#000080] font-bold text-sm">
-          ₹ {property.price?.toLocaleString()}
-        </div>
-
       </div>
+
 
       {/* CONTENT */}
       <div className="p-5 space-y-3">
 
-        <h3 className="font-semibold text-lg text-gray-800 dark:text-white line-clamp-1 group-hover:text-[#000080] transition">
+        {/* PRICE */}
+        <div className="text-xl font-bold text-blue-600">
+          ₹ {property.price?.toLocaleString()}
+        </div>
+
+        {/* TITLE */}
+        <h3 className="font-semibold text-lg text-gray-800 dark:text-white line-clamp-1">
           {property.title}
         </h3>
 
+        {/* LOCATION */}
         <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
-          <MapPin size={16} className="mr-1 text-[#000080]" />
+
+          <MapPin size={16} className="mr-1 text-blue-600" />
+
           {property.city || property.address || "Location not specified"}
+
         </div>
 
-        <div className="flex justify-between text-sm text-gray-600 dark:text-gray-300 pt-3 border-t border-gray-100 dark:border-gray-700">
+        {/* PROPERTY DETAILS */}
+        <div className="flex justify-between items-center pt-4 border-t border-gray-100 dark:border-gray-700 text-sm text-gray-600 dark:text-gray-300">
 
           <span className="flex items-center gap-1">
             <BedDouble size={16} /> {property.bedrooms || 0}

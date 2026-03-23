@@ -1,64 +1,167 @@
-import React from "react";
+import React from "react"
+import { FileText, ShieldCheck, Ban, AlertTriangle } from "lucide-react"
 
 export default function Terms() {
+
   return (
-    <div className="bg-[#f4f6fb] min-h-screen py-16 px-6">
+    <div className="bg-gray-50 dark:bg-gray-900 min-h-screen py-20 px-6">
 
-      <div className="max-w-6xl mx-auto grid md:grid-cols-2 bg-white dark:bg-gray-800 rounded-2xl shadow-xl overflow-hidden">
+      <div className="max-w-7xl mx-auto grid md:grid-cols-2 bg-white dark:bg-gray-800 rounded-2xl shadow-xl overflow-hidden">
 
-        <div className="hidden md:flex bg-[#000080] text-white flex-col justify-center p-12">
-          <h2 className="text-4xl font-bold mb-4">Terms of Use</h2>
-          <p className="text-lg opacity-90">
-            Understand your rights and responsibilities.
+        {/* LEFT PANEL */}
+        <div className="hidden md:flex bg-gradient-to-br from-blue-600 to-blue-800 text-white flex-col justify-center p-12">
+
+          <h2 className="text-4xl font-bold mb-6">
+            Terms of Use
+          </h2>
+
+          <p className="text-lg opacity-90 mb-10">
+            Understand your rights and responsibilities while using our platform.
           </p>
-        </div>
 
-        <div className="p-8 md:p-12 space-y-6">
+          <div className="space-y-4 text-sm">
 
-          <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-200">Terms & Conditions</h1>
+            <div className="bg-white dark:bg-gray-800/10 backdrop-blur p-3 rounded-lg">
+              ✔ Transparent property platform
+            </div>
 
-          <div>
-            <h2 className="text-xl font-semibold">1. Acceptance</h2>
-            <p className="text-gray-600">
-              By using our platform, you agree to these terms.
-            </p>
-          </div>
+            <div className="bg-white dark:bg-gray-800/10 backdrop-blur p-3 rounded-lg">
+              ✔ Secure user interactions
+            </div>
 
-          <div>
-            <h2 className="text-xl font-semibold">2. User Responsibilities</h2>
-            <ul className="list-disc pl-6 text-gray-600 space-y-1">
-              <li>Provide accurate information</li>
-              <li>Avoid fake listings</li>
-              <li>Use platform lawfully</li>
-            </ul>
-          </div>
+            <div className="bg-white dark:bg-gray-800/10 backdrop-blur p-3 rounded-lg">
+              ✔ Responsible platform usage
+            </div>
 
-          <div>
-            <h2 className="text-xl font-semibold">3. Property Listings</h2>
-            <p className="text-gray-600">
-              We do not guarantee ownership accuracy.
-            </p>
-          </div>
-
-          <div>
-            <h2 className="text-xl font-semibold">4. Prohibited Activities</h2>
-            <ul className="list-disc pl-6 text-gray-600 space-y-1">
-              <li>Fraud</li>
-              <li>Unauthorized access</li>
-              <li>Misuse of data</li>
-            </ul>
-          </div>
-
-          <div>
-            <h2 className="text-xl font-semibold">5. Limitation</h2>
-            <p className="text-gray-600">
-              We act only as a digital facilitator.
-            </p>
           </div>
 
         </div>
+
+
+        {/* RIGHT PANEL */}
+        <div className="p-6 md:p-10 md:p-12 space-y-8">
+
+          <h1 className="text-3xl font-bold text-gray-800 dark:text-white">
+            Terms & Conditions
+          </h1>
+
+
+          {/* ACCEPTANCE */}
+          <div className="flex gap-4">
+
+            <FileText className="text-blue-600 mt-1" size={24} />
+
+            <div>
+
+              <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
+                1. Acceptance
+              </h2>
+
+              <p className="text-gray-600 dark:text-gray-300">
+                By using our platform, you agree to comply with these terms
+                and conditions.
+              </p>
+
+            </div>
+
+          </div>
+
+
+          {/* USER RESPONSIBILITIES */}
+          <div className="flex gap-4">
+
+            <ShieldCheck className="text-blue-600 mt-1" size={24} />
+
+            <div>
+
+              <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
+                2. User Responsibilities
+              </h2>
+
+              <ul className="list-disc pl-5 text-gray-600 dark:text-gray-300 space-y-1">
+
+                <li>Provide accurate information</li>
+                <li>Avoid fake or misleading listings</li>
+                <li>Use the platform lawfully</li>
+
+              </ul>
+
+            </div>
+
+          </div>
+
+
+          {/* PROPERTY LISTINGS */}
+          <div className="flex gap-4">
+
+            <AlertTriangle className="text-blue-600 mt-1" size={24} />
+
+            <div>
+
+              <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
+                3. Property Listings
+              </h2>
+
+              <p className="text-gray-600 dark:text-gray-300">
+                While we aim to provide accurate listings, we do not guarantee
+                ownership authenticity or property details. Users should verify
+                information independently.
+              </p>
+
+            </div>
+
+          </div>
+
+
+          {/* PROHIBITED ACTIVITIES */}
+          <div className="flex gap-4">
+
+            <Ban className="text-blue-600 mt-1" size={24} />
+
+            <div>
+
+              <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
+                4. Prohibited Activities
+              </h2>
+
+              <ul className="list-disc pl-5 text-gray-600 dark:text-gray-300 space-y-1">
+
+                <li>Fraudulent activities</li>
+                <li>Unauthorized access to systems</li>
+                <li>Misuse of user or platform data</li>
+
+              </ul>
+
+            </div>
+
+          </div>
+
+
+          {/* LIMITATION */}
+          <div className="flex gap-4">
+
+            <FileText className="text-blue-600 mt-1" size={24} />
+
+            <div>
+
+              <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
+                5. Limitation of Liability
+              </h2>
+
+              <p className="text-gray-600 dark:text-gray-300">
+                Our platform acts solely as a digital facilitator connecting
+                buyers, sellers, and agents. We are not responsible for
+                transactions between parties.
+              </p>
+
+            </div>
+
+          </div>
+
+        </div>
+
       </div>
 
     </div>
-  );
+  )
 }

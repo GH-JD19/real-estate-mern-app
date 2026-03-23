@@ -8,13 +8,14 @@ const UserLayout = ({ children }) => {
   const { user } = useAuth()
 
   return (
-    <div className="flex min-h-[calc(100vh-64px)]">
+    <div className="flex min-h-screen bg-gray-100 text-gray-900 dark:bg-gray-900 dark:text-gray-100">
 
-      {user?.role === "user" && (
+      {/* Optional role check */}
+      {user && (
         <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} />
       )}
 
-      <div className="flex-1 p-6 bg-gray-100">
+      <div className="flex-1 p-6">
         {children}
       </div>
 

@@ -80,27 +80,39 @@ function ChangePassword() {
   }
 
   return (
+    
+    <div className="bg-gray-100 min-h-[80vh] flex items-center justify-center px-4 dark:bg-gray-900 text-gray-900 dark:text-white">
+      
+      {/* LOADING OVERLAY */}
+      {loading && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="bg-white dark:bg-gray-800 px-10 py-8 rounded-2xl shadow-2xl flex flex-col items-center gap-4">
+            <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-lg font-semibold text-gray-700 dark:text-gray-300">
+              Updating password...
+            </p>
+          </div>
+        </div>
+      )}
 
-    <div className="bg-[#f4f6fb] min-h-[80vh] flex items-center justify-center px-4">
-
-      <div className="grid md:grid-cols-2 max-w-4xl w-full bg-white rounded-2xl shadow-lg overflow-hidden">
+      <div className="grid md:grid-cols-2 max-w-4xl w-full bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden">
 
         {/* LEFT PANEL */}
-        <div className="bg-[#000080] text-white p-10 flex flex-col justify-center">
+        <div className="hidden md:flex bg-gradient-to-br from-blue-600 to-blue-800 text-white p-6 md:p-10 flex-col justify-center">
 
           <h2 className="text-3xl font-bold mb-4 flex items-center gap-2">
             Change Password <FaLock />
           </h2>
 
-          <p className="text-gray-200">
+          <p className="text-blue-100">
             Update your password to keep your account secure.
-            Always use a strong password that you don't use elsewhere.
+            Always use a strong password you don't use elsewhere.
           </p>
 
         </div>
 
         {/* RIGHT PANEL */}
-        <div className="p-10">
+        <div className="p-6 md:p-10">
 
           <h3 className="text-2xl font-semibold mb-6">
             Update Password
@@ -134,7 +146,7 @@ function ChangePassword() {
                   value={form.currentPassword}
                   onChange={handleChange}
                   placeholder="Enter current password"
-                  className="w-full border rounded-lg px-4 py-3 pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border rounded-lg px-4 py-3 pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-900"
                   required
                 />
 
@@ -163,7 +175,7 @@ function ChangePassword() {
                   value={form.newPassword}
                   onChange={handleChange}
                   placeholder="Enter new password"
-                  className="w-full border rounded-lg px-4 py-3 pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border rounded-lg px-4 py-3 pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-900"
                   required
                 />
 
@@ -192,7 +204,7 @@ function ChangePassword() {
                   value={form.confirmPassword}
                   onChange={handleChange}
                   placeholder="Confirm new password"
-                  className="w-full border rounded-lg px-4 py-3 pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border rounded-lg px-4 py-3 pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-900"
                   required
                 />
 
@@ -217,7 +229,7 @@ function ChangePassword() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-[#000080] hover:bg-blue-900 text-white py-3 rounded-lg font-semibold transition"
+              className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:opacity-90 text-white py-3 rounded-lg font-semibold transition"
             >
               {loading ? "Updating..." : "Update Password"}
             </button>

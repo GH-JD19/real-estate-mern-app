@@ -1,4 +1,5 @@
 import axios from "axios"
+import { loaderRef } from "../context/LoaderRef"   // ✅ ADD THIS
 
 const api = axios.create({
   baseURL: "http://localhost:5000/api"
@@ -6,6 +7,9 @@ const api = axios.create({
 
 api.interceptors.request.use(
   (config) => {
+
+    // 🔥 START LOADER
+    loaderRef.current?.setLoading(true)
 
     const token =
       localStorage.getItem("token") ||
@@ -17,7 +21,21 @@ api.interceptors.request.use(
 
     return config
   },
-  (error) => Promise.reject(error)
+  (error) => {
+    loaderRef.current?.setLoading(false)   // 🔥 STOP LOADER ON ERROR
+    return Promise.reject(error)
+  }
+)
+
+api.interceptors.response.use(
+  (response) => {
+    loaderRef.current?.setLoading(false)   // 🔥 STOP LOADER
+    return response
+  },
+  (error) => {
+    loaderRef.current?.setLoading(false)   // 🔥 STOP LOADER
+    return Promise.reject(error)
+  }
 )
 
 export default api

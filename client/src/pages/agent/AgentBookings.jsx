@@ -4,7 +4,6 @@ import api from "../../services/api"
 const AgentBookings = () => {
 
   const [bookings, setBookings] = useState([])
-  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     fetchBookings()
@@ -21,10 +20,6 @@ const AgentBookings = () => {
 
       console.log("Agent bookings fetch error", err)
       setBookings([])
-
-    } finally {
-
-      setLoading(false)
 
     }
   }
@@ -69,21 +64,15 @@ const AgentBookings = () => {
         Visit Requests
       </h2>
 
-      {loading ? (
+      {bookings.length === 0 ? (
 
-        <div className="bg-white p-6 rounded shadow text-center">
-          Loading...
-        </div>
-
-      ) : bookings.length === 0 ? (
-
-        <div className="bg-white p-6 rounded shadow text-center">
+        <div className="bg-white dark:bg-gray-800 p-6 rounded shadow text-center">
           No Visit Requests Yet
         </div>
 
       ) : (
 
-        <table className="w-full bg-white rounded shadow">
+        <table className="w-full bg-white dark:bg-gray-800 rounded shadow">
 
           <thead className="bg-gray-200">
 

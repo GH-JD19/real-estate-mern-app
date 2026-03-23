@@ -9,7 +9,6 @@ const AgentAllProperties = () => {
   const navigate = useNavigate()
 
   const [properties, setProperties] = useState([])
-  const [loading, setLoading] = useState(true)
 
   const [page, setPage] = useState(1)
   const [pages, setPages] = useState(1)
@@ -34,8 +33,6 @@ const AgentAllProperties = () => {
       toast.error("Failed to load properties")
       setProperties([])
 
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -70,13 +67,7 @@ const AgentAllProperties = () => {
 
       </div>
 
-      {loading ? (
-
-        <div className="bg-white dark:bg-gray-800 p-6 text-center rounded shadow">
-          Loading...
-        </div>
-
-      ) : properties.length === 0 ? (
+      {properties.length === 0 ? (
 
         <div className="bg-white dark:bg-gray-800 p-6 text-center rounded shadow">
           No Properties Found
@@ -85,6 +76,7 @@ const AgentAllProperties = () => {
       ) : (
 
         <>
+
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
 
             {properties.map(property => (

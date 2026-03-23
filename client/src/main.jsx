@@ -7,6 +7,8 @@ import "react-toastify/dist/ReactToastify.css"
 import App from "./App"
 import { AuthProvider } from "./context/AuthContext"
 import { ThemeProvider } from "./context/ThemeContext"
+import { LoaderProvider } from "./context/LoaderContext"
+
 import "./index.css"
 
 ReactDOM.createRoot(document.getElementById("root")).render(
@@ -14,15 +16,17 @@ ReactDOM.createRoot(document.getElementById("root")).render(
     <BrowserRouter>
       <ThemeProvider>
         <AuthProvider>
-          <App />
-          <ToastContainer
-            position="top-right"
-            autoClose={2000}
-            hideProgressBar={false}
-            newestOnTop
-            closeOnClick
-            pauseOnHover
-          />
+          <LoaderProvider>
+            <App />
+            <ToastContainer
+              position="top-right"
+              autoClose={2000}
+              hideProgressBar={false}
+              newestOnTop
+              closeOnClick
+              pauseOnHover
+            />
+          </LoaderProvider>
         </AuthProvider>
       </ThemeProvider>
     </BrowserRouter>

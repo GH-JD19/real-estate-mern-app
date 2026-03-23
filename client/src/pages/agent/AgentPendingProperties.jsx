@@ -9,7 +9,6 @@ function AgentPendingProperties() {
   const navigate = useNavigate()
 
   const [properties, setProperties] = useState([])
-  const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
 
   const propertiesPerPage = 6
@@ -33,8 +32,6 @@ function AgentPendingProperties() {
       toast.error("Failed to load pending properties")
       setProperties([])
 
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -72,13 +69,7 @@ function AgentPendingProperties() {
 
       </div>
 
-      {loading ? (
-
-        <div className="bg-white dark:bg-gray-800 p-6 text-center rounded shadow">
-          Loading...
-        </div>
-
-      ) : properties.length === 0 ? (
+      {properties.length === 0 ? (
 
         <div className="bg-white dark:bg-gray-800 p-6 text-center rounded shadow">
           No Pending Properties

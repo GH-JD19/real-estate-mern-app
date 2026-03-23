@@ -71,6 +71,11 @@ const userSchema = new mongoose.Schema(
       default: false,
     },
 
+    isActive: {
+      type: Boolean,
+      default: false
+    },
+
     isAgentRequested: {
       type: Boolean,
       default: false,

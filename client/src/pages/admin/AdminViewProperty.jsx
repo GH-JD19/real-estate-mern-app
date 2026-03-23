@@ -18,7 +18,7 @@ const AdminViewProperty = () => {
 
   useEffect(() => {
     fetchProperty()
-  }, [])
+  }, [id])
 
   const fetchProperty = async () => {
     try {
@@ -64,8 +64,10 @@ const AdminViewProperty = () => {
         rejectionReason: rejectReason,
         adminNote
       })
+
       toast.error("Property Rejected")
       setShowRejectBox(false)
+      setRejectReason("")
       fetchProperty()
     } catch {
       toast.error("Rejection failed")
@@ -75,7 +77,7 @@ const AdminViewProperty = () => {
   const handleFeature = async () => {
     try {
       await api.put(`/properties/admin/feature/${id}`, {
-        isFeatured: true
+        featured: true
       })
       toast.success("Marked as Featured")
       fetchProperty()
@@ -87,7 +89,7 @@ const AdminViewProperty = () => {
   const handleUnfeature = async () => {
     try {
       await api.put(`/properties/admin/feature/${id}`, {
-        isFeatured: false
+        featured: false
       })
       toast.success("Removed from Featured")
       fetchProperty()
@@ -97,6 +99,8 @@ const AdminViewProperty = () => {
   }
 
   const handleDelete = async () => {
+    if (!window.confirm("Are you sure you want to delete this property?")) return
+
     try {
       await api.delete(`/properties/admin/${id}`)
       toast.success("Property Deleted")
@@ -167,19 +171,21 @@ const AdminViewProperty = () => {
             className="w-full h-96 object-cover rounded-xl shadow"
           />
 
-          <div className="flex gap-2 mt-4 overflow-x-auto">
-            {property.media?.images?.map((img, index) => (
-              <img
-                key={index}
-                src={img}
-                alt="thumb"
-                onClick={() => setActiveImage(index)}
-                className={`w-24 h-20 object-cover rounded cursor-pointer border-2 ${
-                  activeImage === index ? "border-blue-500" : "border-transparent"
-                }`}
-              />
-            ))}
-          </div>
+          {property.media?.images?.length > 0 && (
+            <div className="flex gap-2 mt-4 overflow-x-auto">
+              {property.media.images.map((img, index) => (
+                <img
+                  key={index}
+                  src={img}
+                  alt="thumb"
+                  onClick={() => setActiveImage(index)}
+                  className={`w-24 h-20 object-cover rounded cursor-pointer border-2 ${
+                    activeImage === index ? "border-blue-500" : "border-transparent"
+                  }`}
+                />
+              ))}
+            </div>
+          )}
         </div>
 
         {/* DETAILS SECTION */}
@@ -240,9 +246,9 @@ const AdminViewProperty = () => {
           {/* OWNER INFO */}
           <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow">
             <h3 className="text-xl font-semibold mb-4">Owner Information</h3>
-            <p><strong>Name:</strong> {property.createdBy?.name}</p>
-            <p><strong>Email:</strong> {property.createdBy?.email}</p>
-            <p><strong>Role:</strong> {property.createdBy?.role}</p>
+            <p><strong>Name:</strong> {safeValue(property.createdBy?.name)}</p>
+            <p><strong>Email:</strong> {safeValue(property.createdBy?.email)}</p>
+            <p><strong>Role:</strong> {safeValue(property.createdBy?.role)}</p>
           </div>
 
           {/* ADMIN NOTE */}
@@ -255,6 +261,34 @@ const AdminViewProperty = () => {
               className="w-full p-3 rounded border dark:bg-gray-700"
             />
           </div>
+
+          {/* REJECTION BOX */}
+          {showRejectBox && (
+            <div className="bg-red-100 dark:bg-red-900 p-4 rounded-lg">
+              <textarea
+                placeholder="Enter rejection reason..."
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                className="w-full p-2 rounded border mb-3 text-black"
+              />
+
+              <div className="flex gap-3">
+                <button
+                  onClick={handleReject}
+                  className="bg-red-600 text-white px-4 py-2 rounded"
+                >
+                  Confirm Reject
+                </button>
+
+                <button
+                  onClick={() => setShowRejectBox(false)}
+                  className="bg-gray-500 text-white px-4 py-2 rounded"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* ACTION BUTTONS */}
           <div className="flex gap-4 mt-4 flex-wrap">

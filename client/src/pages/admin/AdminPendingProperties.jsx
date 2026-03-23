@@ -8,14 +8,12 @@ const AdminPendingProperties = () => {
   const navigate = useNavigate()
 
   const [properties, setProperties] = useState([])
-  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
 
   const fetchPending = async (page = 1) => {
     try {
-      setLoading(true)
 
       // 🔥 Build URL safely (avoid empty search param)
       let url = `/properties/admin/all?status=PENDING&page=${page}&limit=6`
@@ -32,8 +30,6 @@ const AdminPendingProperties = () => {
 
     } catch (error) {
       toast.error("Failed to load pending properties")
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -58,11 +54,7 @@ const AdminPendingProperties = () => {
         }}
       />
 
-      {loading ? (
-        <div className="bg-white dark:bg-gray-800 p-6 text-center rounded shadow">
-          Loading...
-        </div>
-      ) : properties.length === 0 ? (
+      {properties.length === 0 ? (
         <div className="bg-white dark:bg-gray-800 p-6 text-center rounded shadow">
           No Pending Properties
         </div>

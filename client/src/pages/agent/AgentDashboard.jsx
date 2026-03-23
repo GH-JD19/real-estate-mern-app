@@ -22,34 +22,41 @@ const AgentDashboard = () => {
   const [chartData, setChartData] = useState([])
 
   useEffect(() => {
+    let isMounted = true
+
+    const fetchStats = async () => {
+      try {
+        const res = await api.get("/properties/my?limit=100")
+
+        const properties = res.data.properties || []
+
+        const total = res.data.total || properties.length
+        const pending = properties.filter(p => p.status === "PENDING").length
+        const approved = properties.filter(p => p.status === "APPROVED").length
+        const rejected = properties.filter(p => p.status === "REJECTED").length
+
+        if (isMounted) {
+          setStats({ total, pending, approved, rejected })
+
+          setChartData([
+            { name: "Total", value: total },
+            { name: "Pending", value: pending },
+            { name: "Approved", value: approved },
+            { name: "Rejected", value: rejected }
+          ])
+        }
+
+      } catch (err) {
+        console.log(err)
+      }
+    }
+
     fetchStats()
+
+    return () => {
+      isMounted = false
+    }
   }, [])
-
-  const fetchStats = async () => {
-  try {
-
-    const res = await api.get("/properties/my?limit=100")
-
-    const properties = res.data.properties || []
-
-    const total = res.data.total || properties.length
-    const pending = properties.filter(p => p.status === "PENDING").length
-    const approved = properties.filter(p => p.status === "APPROVED").length
-    const rejected = properties.filter(p => p.status === "REJECTED").length
-
-    setStats({ total, pending, approved, rejected })
-
-    setChartData([
-      { name: "Total", value: total },
-      { name: "Pending", value: pending },
-      { name: "Approved", value: approved },
-      { name: "Rejected", value: rejected }
-    ])
-
-  } catch (err) {
-    console.log(err)
-  }
-}
 
   return (
     <div>
@@ -82,7 +89,7 @@ const AgentDashboard = () => {
         Listing Overview
       </h3>
 
-      <div className="bg-white p-4 rounded shadow">
+      <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={chartData}>
             <XAxis dataKey="name" />

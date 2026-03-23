@@ -53,27 +53,32 @@ function ResetPassword() {
   }
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center bg-[#f4f6fb] px-4">
+
+    <div className="min-h-[80vh] flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
 
       <div className="w-full max-w-5xl grid md:grid-cols-2 bg-white dark:bg-gray-800 rounded-2xl shadow-xl overflow-hidden">
 
-        {/* LEFT */}
-        <div className="hidden md:flex bg-[#000080] text-white flex-col justify-center p-10">
+        {/* LEFT PANEL */}
+        <div className="hidden md:flex bg-gradient-to-br from-blue-600 to-blue-800 text-white flex-col justify-center p-6 md:p-10">
+
           <h2 className="text-3xl font-bold mb-4">
             Set New Password 🔐
           </h2>
+
           <p className="text-lg opacity-90">
-            Enter your new password below.
+            Enter a strong password to secure your account.
           </p>
+
         </div>
 
-        {/* RIGHT */}
+
+        {/* RIGHT PANEL */}
         <div className="p-8 md:p-12">
 
           {!success ? (
 
             <>
-              <h2 className="text-2xl font-bold mb-6">
+              <h2 className="text-2xl font-bold mb-6 text-gray-800 dark:text-white">
                 Reset Password
               </h2>
 
@@ -88,7 +93,7 @@ function ResetPassword() {
                     required
                     value={password}
                     onChange={(e)=>setPassword(e.target.value)}
-                    className="w-full p-3 border rounded-lg pr-12"
+                    className="w-full p-3 border rounded-lg pr-12 focus:ring-2 focus:ring-blue-600 outline-none dark:bg-gray-900"
                   />
 
                   <button
@@ -101,6 +106,7 @@ function ResetPassword() {
 
                 </div>
 
+
                 {/* CONFIRM PASSWORD */}
                 <div className="relative">
 
@@ -110,7 +116,7 @@ function ResetPassword() {
                     required
                     value={confirmPassword}
                     onChange={(e)=>setConfirmPassword(e.target.value)}
-                    className="w-full p-3 border rounded-lg pr-12"
+                    className="w-full p-3 border rounded-lg pr-12 focus:ring-2 focus:ring-blue-600 outline-none dark:bg-gray-900"
                   />
 
                   <button
@@ -125,15 +131,17 @@ function ResetPassword() {
 
                 </div>
 
+
                 {error && (
                   <p className="text-red-500 text-sm">
                     {error}
                   </p>
                 )}
 
+
                 <button
                   type="submit"
-                  className="w-full bg-[#000080] text-white py-3 rounded-lg font-semibold hover:bg-blue-900"
+                  className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition"
                 >
                   Reset Password
                 </button>
@@ -144,22 +152,24 @@ function ResetPassword() {
 
           ) : (
 
-            <>
-              <h2 className="text-2xl font-bold mb-4">
+            <div className="text-center">
+
+              <h2 className="text-2xl font-bold mb-4 text-gray-800 dark:text-white">
                 Password Updated ✅
               </h2>
 
-              <p className="mb-6">
-                You can now login with your new password.
+              <p className="mb-8 text-gray-600 dark:text-gray-300">
+                Your password has been successfully updated.
               </p>
 
               <Link
                 to="/login"
-                className="block text-center bg-[#000080] text-white py-3 rounded-lg"
+                className="inline-block bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition"
               >
                 Go to Login
               </Link>
-            </>
+
+            </div>
 
           )}
 
@@ -168,7 +178,9 @@ function ResetPassword() {
       </div>
 
     </div>
+
   )
+
 }
 
 export default ResetPassword

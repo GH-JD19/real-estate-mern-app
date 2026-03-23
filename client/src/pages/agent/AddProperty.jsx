@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import api from "../../services/api"
 import { toast } from "react-toastify"
 import { useNavigate } from "react-router-dom"
@@ -7,6 +7,8 @@ import { FaArrowLeft, FaUpload } from "react-icons/fa"
 const AddProperty = () => {
 
   const navigate = useNavigate()
+
+  const fileInputRef = useRef(null)
 
   const [formData, setFormData] = useState({
     title: "",
@@ -37,7 +39,6 @@ const AddProperty = () => {
   const [amenities, setAmenities] = useState([])
   const [images, setImages] = useState([])
   const [preview, setPreview] = useState([])
-  const [loading, setLoading] = useState(false)
 
   const isPlotOrLand =
     formData.type === "PLOT" || formData.type === "LAND"
@@ -92,8 +93,46 @@ const AddProperty = () => {
 
   const handleImageChange = (e) => {
     const files = Array.from(e.target.files)
-    setImages(files)
-    setPreview(files.map(file => URL.createObjectURL(file)))
+
+    const MAX_IMAGES = 10
+    const MAX_SIZE_MB = 5
+
+    if (images.length + files.length > MAX_IMAGES) {
+      toast.error(`Max ${MAX_IMAGES} images allowed`)
+      return
+    }
+
+    const validFiles = []
+
+    for (let file of files) {
+
+      // only images
+      if (!file.type.startsWith("image/")) {
+        toast.error("Only image files allowed")
+        continue
+      }
+
+      // size check
+      if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+        toast.error(`${file.name} is too large`)
+        continue
+      }
+
+      // duplicate check
+      const exists = images.some(
+        img => img.name === file.name && img.size === file.size
+      )
+
+      if (!exists) validFiles.push(file)
+    }
+
+    const newPreviews = validFiles.map(file => URL.createObjectURL(file))
+
+    setImages(prev => [...prev, ...validFiles])
+    setPreview(prev => [...prev, ...newPreviews])
+
+    // reset input (important)
+    fileInputRef.current.value = ""
   }
 
   const handleSubmit = async (e) => {
@@ -120,12 +159,10 @@ const AddProperty = () => {
     }
 
     try {
-      setLoading(true)
-
       const data = new FormData()
 
       Object.keys(formData).forEach(key => {
-        data.append(key, formData[key])
+        data.append(key, formData[key]?.toString().trim())
       })
 
       amenities.forEach(a => data.append("amenities", a))
@@ -138,16 +175,34 @@ const AddProperty = () => {
 
     } catch {
       toast.error("Failed to Add Property")
-    } finally {
-      setLoading(false)
-    }
+    } 
   }
 
   const AMENITIES = [
-    "LIFT","GYM","POOL","SECURITY","PARKING",
-    "GARDEN","POWER_BACKUP","CLUBHOUSE",
-    "PLAY_AREA","WIFI"
+    { label: "LIFT", value: "LIFT" },
+    { label: "GYM", value: "GYM" },
+    { label: "POOL", value: "POOL" },
+    { label: "SECURITY", value: "SECURITY" },
+    { label: "PARKING", value: "PARKING" },
+    { label: "GARDEN", value: "GARDEN" },
+    { label: "POWER BACKUP", value: "POWER_BACKUP" },
+    { label: "CLUBHOUSE", value: "CLUBHOUSE" },
+    { label: "PLAY AREA", value: "PLAY_AREA" },
+    { label: "WIFI", value: "WIFI" }
   ]
+
+  const removeImage = (index) => {
+    URL.revokeObjectURL(preview[index])
+
+    setImages(prev => prev.filter((_, i) => i !== index))
+    setPreview(prev => prev.filter((_, i) => i !== index))
+  }
+
+  useEffect(() => {
+    return () => {
+      preview.forEach(url => URL.revokeObjectURL(url))
+    }
+  }, [preview])
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 p-6">
@@ -162,7 +217,7 @@ const AddProperty = () => {
         </button>
       </div>
 
-      <div className="max-w-6xl mx-auto bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
+      <div className="max-w-6xl mx-auto bg-white dark:bg-gray-800 dark:bg-gray-800 rounded-xl shadow-lg p-8">
         <form onSubmit={handleSubmit} className="space-y-8">
 
           {/* BASIC INFO */}
@@ -170,14 +225,14 @@ const AddProperty = () => {
             <label className="block mb-2 font-medium">Property Title</label>
             <input name="title" value={formData.title}
               onChange={handleChange}
-              className="w-full p-3 border rounded-lg" required />
+              className="w-full p-3 border rounded-lg dark:bg-gray-900" required />
           </div>
 
           <div>
             <label className="block mb-2 font-medium">Description</label>
             <textarea name="description" value={formData.description}
               onChange={handleChange}
-              className="w-full p-3 border rounded-lg" required />
+              className="w-full p-3 border rounded-lg dark:bg-gray-900" required />
           </div>
 
           {/* TYPE + PURPOSE */}
@@ -188,7 +243,7 @@ const AddProperty = () => {
               <select name="type"
                 value={formData.type}
                 onChange={handleChange}
-                className="p-3 border rounded-lg w-full" required>
+                className="p-3 border rounded-lg w-full dark:bg-gray-900" required>
                 <option value="">Select Type</option>
                 <option value="APARTMENT">Apartment</option>
                 <option value="HOUSE">House</option>
@@ -200,7 +255,7 @@ const AddProperty = () => {
                 <option value="OFFICE">Office</option>
                 <option value="WAREHOUSE">Warehouse</option>
                 <option value="PG">PG</option>
-                <option value="BUILDER_FLOOR">Builder Floor</option>
+                <option value="BUILDER FLOOR">Builder Floor</option>
                 <option value="PENTHOUSE">Penthouse</option>
                 <option value="STUDIO">Studio</option>
               </select>
@@ -211,7 +266,7 @@ const AddProperty = () => {
               <select name="purpose"
                 value={formData.purpose}
                 onChange={handleChange}
-                className="p-3 border rounded-lg w-full" required>
+                className="p-3 border rounded-lg w-full dark:bg-gray-900" required>
                 <option value="">Select Purpose</option>
                 <option value="SELL">Sell</option>
                 <option value="RENT">Rent</option>
@@ -223,7 +278,7 @@ const AddProperty = () => {
               <input name="price"
                 value={formData.price}
                 onChange={handleChange}
-                className="p-3 border rounded-lg w-full" required />
+                className="p-3 border rounded-lg w-full dark:bg-gray-900" required />
             </div>
 
           </div>
@@ -245,7 +300,7 @@ const AddProperty = () => {
             <input name="area"
               value={formData.area}
               onChange={handleChange}
-              className="p-3 border rounded-lg w-full" />
+              className="p-3 border rounded-lg w-full dark:bg-gray-900" />
           </div>
 
           {/* RESIDENTIAL DETAILS */}
@@ -258,7 +313,7 @@ const AddProperty = () => {
                   <input name="bedrooms"
                     value={formData.bedrooms}
                     onChange={handleChange}
-                    className="p-3 border rounded-lg w-full" />
+                    className="p-3 border rounded-lg w-full dark:bg-gray-900" />
                 </div>
 
                 <div>
@@ -266,7 +321,7 @@ const AddProperty = () => {
                   <input name="bathrooms"
                     value={formData.bathrooms}
                     onChange={handleChange}
-                    className="p-3 border rounded-lg w-full" />
+                    className="p-3 border rounded-lg w-full dark:bg-gray-900" />
                 </div>
 
                 {!isCommercial && (
@@ -275,7 +330,7 @@ const AddProperty = () => {
                     <input name="balconies"
                       value={formData.balconies}
                       onChange={handleChange}
-                      className="p-3 border rounded-lg w-full" />
+                      className="p-3 border rounded-lg w-full dark:bg-gray-900" />
                   </div>
                 )}
 
@@ -288,7 +343,7 @@ const AddProperty = () => {
                   <input name="floor"
                     value={formData.floor}
                     onChange={handleChange}
-                    className="p-3 border rounded-lg w-full" />
+                    className="p-3 border rounded-lg w-full dark:bg-gray-900" />
                 </div>
 
                 <div>
@@ -296,7 +351,7 @@ const AddProperty = () => {
                   <input name="totalFloors"
                     value={formData.totalFloors}
                     onChange={handleChange}
-                    className="p-3 border rounded-lg w-full" />
+                    className="p-3 border rounded-lg w-full dark:bg-gray-900" />
                 </div>
 
                 <div>
@@ -304,7 +359,7 @@ const AddProperty = () => {
                   <select name="propertyAge"
                     value={formData.propertyAge}
                     onChange={handleChange}
-                    className="p-3 border rounded-lg w-full">
+                    className="p-3 border rounded-lg w-full dark:bg-gray-900">
                     <option value="">Select</option>
                     <option value="NEW">New</option>
                     <option value="1-5 YEARS">1-5 Years</option>
@@ -322,11 +377,11 @@ const AddProperty = () => {
                   <select name="furnishing"
                     value={formData.furnishing}
                     onChange={handleChange}
-                    className="p-3 border rounded-lg w-full">
+                    className="p-3 border rounded-lg w-full dark:bg-gray-900">
                     <option value="">Select</option>
-                    <option value="UNFURNISHED">Unfurnished</option>
-                    <option value="SEMI_FURNISHED">Semi Furnished</option>
-                    <option value="FULLY_FURNISHED">Fully Furnished</option>
+                    <option value="FULLY_FURNISHED">FULLY FURNISHED</option>
+                    <option value="SEMI_FURNISHED">SEMI FURNISHED</option>
+                    <option value="UNFURNISHED">UNFURNISHED</option>
                   </select>
                 </div>
 
@@ -335,7 +390,7 @@ const AddProperty = () => {
                   <select name="parking"
                     value={formData.parking}
                     onChange={handleChange}
-                    className="p-3 border rounded-lg w-full">
+                    className="p-3 border rounded-lg w-full dark:bg-gray-900">
                     <option value="">Select</option>
                     <option value="NONE">None</option>
                     <option value="BIKE">Bike</option>
@@ -349,7 +404,7 @@ const AddProperty = () => {
                   <select name="facing"
                     value={formData.facing}
                     onChange={handleChange}
-                    className="p-3 border rounded-lg w-full">
+                    className="p-3 border rounded-lg w-full dark:bg-gray-900">
                     <option value="">Select</option>
                     <option value="NORTH">North</option>
                     <option value="SOUTH">South</option>
@@ -368,7 +423,7 @@ const AddProperty = () => {
             <input name="maintenanceCharge"
               value={formData.maintenanceCharge}
               onChange={handleChange}
-              className="p-3 border rounded-lg w-full" />
+              className="p-3 border rounded-lg w-full dark:bg-gray-900" />
           </div>
 
           {/* LOCATION */}
@@ -381,7 +436,7 @@ const AddProperty = () => {
                 <input name="lat"
                   value={formData.lat}
                   onChange={handleChange}
-                  className="p-3 border rounded-lg w-full" />
+                  className="p-3 border rounded-lg w-full dark:bg-gray-900" />
               </div>
 
               <div>
@@ -389,7 +444,7 @@ const AddProperty = () => {
                 <input name="lng"
                   value={formData.lng}
                   onChange={handleChange}
-                  className="p-3 border rounded-lg w-full" />
+                  className="p-3 border rounded-lg w-full dark:bg-gray-900" />
               </div>
 
             </div>
@@ -403,26 +458,26 @@ const AddProperty = () => {
               value={formData.address}
               onChange={handleChange}
               placeholder="Address"
-              className="w-full p-3 border rounded-lg mb-4" required />
+              className="w-full p-3 border rounded-lg mb-4 dark:bg-gray-900" required />
 
             <div className="grid md:grid-cols-3 gap-4">
               <input name="city"
                 value={formData.city}
                 onChange={handleChange}
                 placeholder="City"
-                className="p-3 border rounded-lg w-full" required />
+                className="p-3 border rounded-lg w-full dark:bg-gray-900" required />
 
               <input name="state"
                 value={formData.state}
                 onChange={handleChange}
                 placeholder="State"
-                className="p-3 border rounded-lg w-full" required />
+                className="p-3 border rounded-lg w-full dark:bg-gray-900" required />
 
               <input name="pincode"
                 value={formData.pincode}
                 onChange={handleChange}
                 placeholder="Pincode"
-                className="p-3 border rounded-lg w-full" required />
+                className="p-3 border rounded-lg w-full dark:bg-gray-900" required />
             </div>
           </div>
 
@@ -431,15 +486,17 @@ const AddProperty = () => {
             <h3 className="font-semibold mb-2">Amenities</h3>
             <div className="flex flex-wrap gap-2">
               {AMENITIES.map(a => (
-                <button type="button"
-                  key={a}
-                  onClick={() => toggleAmenity(a)}
-                  className={`px-3 py-1 rounded-full border ${
-                    amenities.includes(a) ? "bg-blue-600 text-white" : ""
-                  }`}>
-                  {a}
-                </button>
-              ))}
+              <button
+                type="button"
+                key={a.value}
+                onClick={() => toggleAmenity(a.value)}
+                className={`px-3 py-1 rounded-full border ${
+                  amenities.includes(a.value) ? "bg-blue-600 text-white" : ""
+                }`}
+              >
+                {a.label}
+              </button>
+            ))}
             </div>
           </div>
 
@@ -449,29 +506,42 @@ const AddProperty = () => {
             <label className="flex flex-col items-center justify-center border-2 border-dashed p-6 rounded-lg cursor-pointer">
               <FaUpload className="text-2xl mb-2" />
               Upload Images
-              <input type="file"
+              <input
+                ref={fileInputRef}
+                type="file"
                 multiple
+                accept="image/*"
                 className="hidden"
                 onChange={handleImageChange}
-                required />
+              />
             </label>
           </div>
 
           {preview.length > 0 && (
             <div className="grid grid-cols-3 gap-3">
               {preview.map((img, i) => (
-                <img key={i}
-                  src={img}
-                  className="h-24 w-full object-cover rounded" />
+                <div key={i} className="relative">
+                  <img
+                    src={img}
+                    className="h-24 w-full object-cover rounded"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => removeImage(i)}
+                    className="absolute top-1 right-1 bg-black text-white text-xs px-2 rounded"
+                  >
+                    ✕
+                  </button>
+                </div>
               ))}
             </div>
           )}
 
           <div className="flex gap-4 pt-4">
             <button type="submit"
-              disabled={loading}
               className="bg-blue-600 text-white px-6 py-3 rounded-lg">
-              {loading ? "Uploading..." : "Add Property"}
+              Add Property
             </button>
 
             <button type="button"

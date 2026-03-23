@@ -9,7 +9,6 @@ const MyListings = () => {
   const navigate = useNavigate()
 
   const [properties, setProperties] = useState([])
-  const [loading, setLoading] = useState(true)
 
   const [page, setPage] = useState(1)
   const [pages, setPages] = useState(1)
@@ -30,8 +29,6 @@ const MyListings = () => {
     } catch (err) {
       toast.error("Failed to load listings")
       setProperties([])
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -64,11 +61,8 @@ const MyListings = () => {
         </button>
       </div>
 
-      {loading ? (
-        <div className="bg-white dark:bg-gray-800 p-6 text-center rounded shadow">
-          Loading...
-        </div>
-      ) : properties.length === 0 ? (
+      {properties.length === 0 ? (
+        
         <div className="bg-white dark:bg-gray-800 p-6 text-center rounded shadow">
           No Properties Found
         </div>

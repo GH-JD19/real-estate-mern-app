@@ -1,6 +1,7 @@
 const User = require("../models/User")
 const Property = require("../models/Property")
 const Booking = require("../models/Booking")
+const sendEmail = require("../utils/sendEmail")
 
 // ============================
 // GET ADMIN DASHBOARD STATS
@@ -107,29 +108,56 @@ const getAdminChartData = async (req, res) => {
 const getAllUsers = async (req, res) => {
   try {
 
+    const page = parseInt(req.query.page) || 1
+    const limit = parseInt(req.query.limit) || 6
+    const search = req.query.search || ""
+
     let filter = {}
 
-    // Filter agents
+    // SEARCH BY NAME OR EMAIL
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } }
+      ]
+    }
+
+    // FILTER AGENTS
     if (req.query.role === "agent") {
       filter.role = "agent"
     }
 
-    // Filter normal users
+    // FILTER USERS
     if (req.query.role === "user") {
       filter.role = "user"
     }
 
-    // Filter blocked users
+    // FILTER BLOCKED USERS
     if (req.query.blocked === "true") {
       filter.isBlocked = true
     }
 
-    const users = await User.find(filter).select("-password")
+    const users = await User.find(filter)
+      .select("-password")
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
 
-    res.json({ success:true, users })
+    const total = await User.countDocuments(filter)
+
+    res.json({
+      success: true,
+      users,
+      totalPages: Math.ceil(total / limit)
+    })
 
   } catch (error) {
-    res.status(500).json({ success:false, message:error.message })
+
+    res.status(500).json({
+      success: false,
+      message: error.message
+    })
+
   }
 }
 
@@ -187,6 +215,100 @@ const toggleBlockUser = async (req, res) => {
   }
 }
 
+// ACTIVATE USER
+const activateUser = async (req, res) => {
+
+  try {
+
+    const user = await User.findById(req.params.id)
+
+    if (!user)
+      return res.status(404).json({ message: "User not found" })
+
+    user.isActive = true
+    user.isBlocked = false
+
+    await user.save()
+
+    await sendEmail({
+      email: user.email,
+      subject: "Account Activated",
+      message: `
+Hello ${user.name},
+
+Your account has been successfully activated.
+
+You can now login to the platform.
+
+Thank you.
+`
+    })
+
+    res.json({
+      success: true,
+      message: "User activated"
+    })
+
+  } catch (error) {
+
+    res.status(500).json({
+      success: false,
+      message: error.message
+    })
+
+  }
+
+}
+
+
+const bulkAction = async (req, res) => {
+
+  try {
+
+    const { ids, action } = req.body
+
+    if (!ids || ids.length === 0)
+      return res.status(400).json({ message: "No users selected" })
+
+    const users = await User.find({ _id: { $in: ids } })
+
+    for (let user of users) {
+
+      if (action === "activate") {
+        user.isActive = true
+        user.isBlocked = false
+
+        await sendEmail({
+          email: user.email,
+          subject: "Account Activated",
+          message: `Hello ${user.name}, your account is now active.`
+        })
+      }
+
+      if (action === "block") {
+        user.isBlocked = true
+      }
+
+      await user.save()
+
+    }
+
+    res.json({
+      success: true,
+      message: "Bulk action completed"
+    })
+
+  } catch (error) {
+
+    res.status(500).json({
+      success: false,
+      message: error.message
+    })
+
+  }
+
+}
+
 
 // ============================
 // EXPORTS (VERY IMPORTANT)
@@ -197,5 +319,7 @@ module.exports = {
   getAllUsers,
   promoteToAgent,
   demoteToUser,
-  toggleBlockUser
+  toggleBlockUser,
+  activateUser,
+  bulkAction
 }

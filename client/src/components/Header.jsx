@@ -31,24 +31,32 @@ function Header() {
     return "/user-dashboard"
   }
 
-  const linkClass = "flex items-center gap-2 hover:text-[#4DA8FF]"
-  const activeClass = "flex items-center gap-2 text-[#4DA8FF] font-semibold"
+  const linkClass =
+    "flex items-center gap-2 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition font-medium"
+
+  const activeClass =
+    "flex items-center gap-2 text-blue-600 dark:text-blue-400 font-semibold"
 
   return (
-    <header className="bg-[#000080] dark:bg-gray-900 text-white shadow-lg sticky top-0 z-50">
+    <header className="sticky top-0 z-50 backdrop-blur-md bg-white/80 dark:bg-gray-900/80 border-b border-gray-200 dark:border-gray-700">
 
-      <div className="container mx-auto px-6 py-4 flex justify-between items-center">
+      <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
 
-        <NavLink to={user ? getDashboardLink() : "/"} className="text-2xl font-bold">
+        {/* LOGO */}
+        <NavLink
+          to={user ? getDashboardLink() : "/"}
+          className="text-2xl font-bold text-blue-600"
+        >
           RealEstate
         </NavLink>
 
         {/* DESKTOP MENU */}
         <nav className="hidden md:flex items-center gap-6">
 
+          {/* THEME */}
           <button
             onClick={toggleTheme}
-            className="bg-gray-200 dark:bg-gray-700 text-black dark:text-white px-3 py-1 rounded"
+            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition"
           >
             {darkMode ? <FaSun /> : <FaMoon />}
           </button>
@@ -70,7 +78,6 @@ function Header() {
                 <FaHome /> Dashboard
               </NavLink>
 
-              {/* ADMIN */}
               {user.role === "admin" && (
                 <>
                   <NavLink to="/admin/properties" className={({isActive}) => isActive ? activeClass : linkClass}>
@@ -87,7 +94,6 @@ function Header() {
                 </>
               )}
 
-              {/* AGENT */}
               {user.role === "agent" && (
                 <>
                   <NavLink to="/agent/manage-properties" className={({isActive}) => isActive ? activeClass : linkClass}>
@@ -100,7 +106,6 @@ function Header() {
                 </>
               )}
 
-              {/* USER */}
               {user.role === "user" && (
                 <>
                   <NavLink to="/user/saved" className={({isActive}) => isActive ? activeClass : linkClass}>
@@ -113,23 +118,22 @@ function Header() {
                 </>
               )}
 
-              {/* SETTINGS */}
               <div className="relative">
 
                 <button
                   onClick={() => setSettingsOpen(!settingsOpen)}
-                  className="flex items-center gap-2 hover:text-[#4DA8FF]"
+                  className={`${linkClass} ${settingsOpen ? "text-blue-600 dark:text-blue-400 font-semibold" : ""}`}
                 >
                   <FaCog /> Settings
                 </button>
 
                 {settingsOpen && (
-                  <div className="absolute right-0 mt-2 bg-blue-900 text-white rounded shadow-lg w-48 border border-blue-700">
+                  <div className="absolute right-0 mt-3 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg shadow-lg w-48 border border-gray-200 dark:border-gray-700">
 
                     <NavLink
                       to={`/${user.role}/profile`}
                       onClick={() => setSettingsOpen(false)}
-                      className="flex items-center gap-2 px-4 py-2 hover:bg-blue-700"
+                      className="flex items-center gap-2 px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700"
                     >
                       <FaUser /> Profile
                     </NavLink>
@@ -137,7 +141,7 @@ function Header() {
                     <NavLink
                       to={`/${user.role}/change-password`}
                       onClick={() => setSettingsOpen(false)}
-                      className="flex items-center gap-2 px-4 py-2 hover:bg-blue-700"
+                      className="flex items-center gap-2 px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700"
                     >
                       <FaKey /> Change Password
                     </NavLink>
@@ -147,7 +151,10 @@ function Header() {
 
               </div>
 
-              <button onClick={handleLogout} className="bg-red-600 px-4 py-2 rounded">
+              <button
+                onClick={handleLogout}
+                className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+              >
                 Logout
               </button>
             </>
@@ -156,21 +163,24 @@ function Header() {
         </nav>
 
         {/* MOBILE TOGGLE */}
-        <button className="md:hidden text-2xl" onClick={() => setMenuOpen(!menuOpen)}>
+        <button
+          className="md:hidden text-2xl text-gray-700 dark:text-gray-300"
+          onClick={() => setMenuOpen(!menuOpen)}
+        >
           {menuOpen ? <FaTimes /> : <FaBars />}
         </button>
 
       </div>
-      
-      {/* MOBILE MENU DRAWER */}
+
+      {/* MOBILE MENU */}
       <div
-        className={`fixed top-0 left-0 h-full w-72 bg-[#000080] dark:bg-gray-900 text-white transform transition-transform duration-300 z-50
+        className={`fixed inset-0 h-screen w-screen overflow-y-auto bg-white dark:bg-black text-gray-700 dark:text-gray-300 dark:text-white shadow-xl transform transition-transform duration-300 z-50
         ${menuOpen ? "translate-x-0" : "-translate-x-full"} md:hidden`}
       >
 
-        <div className="flex items-center justify-between px-6 py-4 border-b border-blue-800">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
 
-          <h2 className="text-xl font-bold">
+          <h2 className="text-xl font-bold text-blue-600">
             RealEstate
           </h2>
 
@@ -180,8 +190,16 @@ function Header() {
 
         </div>
 
-        <div className="px-6 py-4 space-y-4">
+        <div className="px-6 py-6 space-y-6">
 
+          {/* MOBILE THEME TOGGLE - ALWAYS VISIBLE */}
+          <button
+                onClick={toggleTheme}
+                className="flex items-center gap-2 text-white bg-gray-800 px-4 py-2 rounded-lg w-full"
+              >
+                {darkMode ? <FaSun /> : <FaMoon />} Toggle Theme
+          </button>
+          
           {!user && (
             <>
               <NavLink to="/" onClick={()=>setMenuOpen(false)} className={linkClass}><FaHome /> Home</NavLink>
@@ -199,7 +217,6 @@ function Header() {
                 <FaHome /> Dashboard
               </NavLink>
 
-              {/* ADMIN */}
               {user.role === "admin" && (
                 <>
                   <NavLink to="/admin/properties" onClick={()=>setMenuOpen(false)} className={linkClass}>
@@ -216,11 +233,10 @@ function Header() {
                 </>
               )}
 
-              {/* AGENT */}
               {user.role === "agent" && (
                 <>
                   <NavLink to="/agent/manage-properties" onClick={()=>setMenuOpen(false)} className={linkClass}>
-                    <FaBuilding /> Manage Properties
+                    <FaBuilding /> Manage Property
                   </NavLink>
 
                   <NavLink to="/agent/bookings" onClick={()=>setMenuOpen(false)} className={linkClass}>
@@ -229,7 +245,6 @@ function Header() {
                 </>
               )}
 
-              {/* USER */}
               {user.role === "user" && (
                 <>
                   <NavLink to="/user/saved" onClick={()=>setMenuOpen(false)} className={linkClass}>
@@ -252,7 +267,7 @@ function Header() {
 
               <button
                 onClick={handleLogout}
-                className="bg-red-600 px-4 py-2 rounded w-full"
+                className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg w-full transition"
               >
                 Logout
               </button>
@@ -263,7 +278,6 @@ function Header() {
 
       </div>
 
-      {/* OVERLAY */}
       {menuOpen && (
         <div
           className="fixed inset-0 bg-black bg-opacity-40 md:hidden z-40"

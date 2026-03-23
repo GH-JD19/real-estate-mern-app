@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import api from "../../services/api"
 
 const Profile = () => {
@@ -6,6 +6,10 @@ const Profile = () => {
   const [user, setUser] = useState(null)
   const [editing, setEditing] = useState(false)
   const [image, setImage] = useState(null)
+  const [preview, setPreview] = useState(null)
+  const [message, setMessage] = useState("")
+
+  const fileInputRef = useRef(null)
 
   const [form, setForm] = useState({
     name: "",
@@ -14,7 +18,13 @@ const Profile = () => {
   })
 
   useEffect(() => {
-    fetchProfile()
+
+    const loadProfile = async () => {
+      await fetchProfile()
+    }
+
+    loadProfile()
+
   }, [])
 
   const fetchProfile = async () => {
@@ -44,8 +54,7 @@ const Profile = () => {
     }
 
     if (name === "phone") {
-      value = value.replace(/\D/g, "")
-      value = value.slice(0, 10)
+      value = value.replace(/\D/g, "").slice(0, 10)
     }
 
     setForm({
@@ -55,7 +64,14 @@ const Profile = () => {
   }
 
   const handleImage = (e) => {
-    setImage(e.target.files[0])
+
+    const file = e.target.files[0]
+
+    if (file) {
+      setImage(file)
+      setPreview(URL.createObjectURL(file))
+    }
+
   }
 
   const handleUpdate = async (e) => {
@@ -79,85 +95,93 @@ const Profile = () => {
         formData.append("photo", image)
       }
 
-      await api.put("/users/update-profile", formData, {
+      const res = await api.put("/users/update-profile", formData, {
         headers: {
           "Content-Type": "multipart/form-data"
         }
       })
 
+      setMessage(res.data.message || "Profile updated successfully")
+
       setEditing(false)
+      setImage(null)
+      setPreview(null)
 
       fetchProfile()
 
+      setTimeout(() => {
+        setMessage("")
+      }, 3000)
+
     } catch (err) {
+
       console.log(err)
+      alert(err.response?.data?.message || "Profile update failed")
+
     }
 
   }
 
-  if (!user) return <p>Loading...</p>
+  // ✅ KEEP UI SAME
+  if (!user) return <p className="p-6">Loading...</p>
 
   const initials =
     user.name?.split(" ").map(n => n[0]).join("").toUpperCase()
 
   return (
 
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-4xl mx-auto px-4">
 
       <h2 className="text-2xl font-bold mb-6">
         My Profile
       </h2>
 
-      <div className="bg-white shadow-lg rounded-xl p-8">
+      {message && (
+        <div className="mb-4 p-3 rounded-lg bg-green-100 text-green-700">
+          {message}
+        </div>
+      )}
 
-        {/* Profile Header */}
-        <div className="flex items-center gap-6 border-b pb-6">
+      <div className="bg-white dark:bg-gray-800 shadow-lg rounded-xl p-6 md:p-8">
 
-          {/* Avatar */}
-          <div className="w-24 h-24 rounded-full overflow-hidden bg-blue-900 flex items-center justify-center text-white text-2xl font-bold">
+        <div className="flex flex-col md:flex-row items-center gap-6 border-b pb-6">
 
-            {user.photo ? (
-              <img
-                src={user.photo}
-                alt="profile"
-                className="w-full h-full object-cover"
-              />
+          <div
+            className="w-24 h-24 rounded-full overflow-hidden bg-blue-600 flex items-center justify-center text-white text-2xl font-bold cursor-pointer"
+            onClick={() => editing && fileInputRef.current.click()}
+          >
+
+            {preview ? (
+              <img src={preview} alt="preview" className="w-full h-full object-cover" />
+            ) : user.photo ? (
+              <img src={user.photo} alt="profile" className="w-full h-full object-cover" />
             ) : (
               initials
             )}
 
           </div>
 
-          <div>
-            <h3 className="text-xl font-semibold">
-              {user.name}
-            </h3>
-
-            <p className="text-gray-500">
-              {user.email}
-            </p>
-
+          <div className="text-center md:text-left">
+            <h3 className="text-xl font-semibold">{user.name}</h3>
+            <p className="text-gray-500">{user.email}</p>
             <span className="inline-block mt-2 px-3 py-1 text-sm bg-blue-100 text-blue-800 rounded-full">
               {user.role}
             </span>
           </div>
 
-          <div className="ml-auto">
-
+          <div className="md:ml-auto">
             {!editing && (
               <button
                 onClick={() => setEditing(true)}
-                className="bg-blue-900 text-white px-4 py-2 rounded hover:bg-blue-800 transition"
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
               >
                 Edit Profile
               </button>
             )}
-
           </div>
 
         </div>
 
-        {/* VIEW MODE */}
         {!editing && (
 
           <div className="grid md:grid-cols-2 gap-6 mt-6">
@@ -186,82 +210,75 @@ const Profile = () => {
 
         )}
 
-        {/* EDIT MODE */}
         {editing && (
 
-          <form
-            onSubmit={handleUpdate}
-            className="grid md:grid-cols-2 gap-6 mt-6"
-          >
+          <form onSubmit={handleUpdate} className="grid md:grid-cols-2 gap-6 mt-6">
 
             <div>
-              <label className="text-sm text-gray-500">
-                Name
-              </label>
-
+              <label className="text-sm text-gray-500">Name</label>
               <input
                 type="text"
                 name="name"
                 value={form.name}
                 onChange={handleChange}
-                className="w-full border rounded px-3 py-2 mt-1"
+                className="w-full border rounded-lg px-4 py-2 mt-1 focus:ring-2 focus:ring-blue-500 dark:bg-gray-900"
               />
             </div>
 
             <div>
-              <label className="text-sm text-gray-500">
-                Phone
-              </label>
-
+              <label className="text-sm text-gray-500">Phone</label>
               <input
                 type="text"
                 name="phone"
                 value={form.phone}
                 onChange={handleChange}
                 maxLength="10"
-                className="w-full border rounded px-3 py-2 mt-1"
+                className="w-full border rounded-lg px-4 py-2 mt-1 focus:ring-2 focus:ring-blue-500 dark:bg-gray-900"
               />
             </div>
 
             <div className="md:col-span-2">
-              <label className="text-sm text-gray-500">
-                Address
-              </label>
-
+              <label className="text-sm text-gray-500">Address</label>
               <input
                 type="text"
                 name="address"
                 value={form.address}
                 onChange={handleChange}
-                className="w-full border rounded px-3 py-2 mt-1"
+                className="w-full border rounded-lg px-4 py-2 mt-1 focus:ring-2 focus:ring-blue-500 dark:bg-gray-900"
               />
             </div>
 
             <div className="md:col-span-2">
-              <label className="text-sm text-gray-500">
-                Profile Photo
-              </label>
+              <label className="text-sm text-gray-500">Profile Photo</label>
 
               <input
                 type="file"
+                ref={fileInputRef}
                 onChange={handleImage}
                 className="w-full mt-1"
               />
+
+              <p className="text-xs text-gray-400 mt-1">
+                JPG or PNG. Max size 2MB.
+              </p>
             </div>
 
             <div className="md:col-span-2 flex gap-4">
 
               <button
                 type="submit"
-                className="bg-blue-900 text-white px-5 py-2 rounded hover:bg-blue-800"
+                className="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition"
               >
                 Save Changes
               </button>
 
               <button
                 type="button"
-                onClick={() => setEditing(false)}
-                className="border px-5 py-2 rounded"
+                onClick={() => {
+                  setEditing(false)
+                  setPreview(null)
+                }}
+                className="border px-5 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
               >
                 Cancel
               </button>
@@ -275,7 +292,6 @@ const Profile = () => {
       </div>
 
     </div>
-
   )
 }
 

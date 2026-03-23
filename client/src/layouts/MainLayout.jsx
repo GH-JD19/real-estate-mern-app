@@ -5,17 +5,14 @@ import Footer from "../components/Footer"
 function MainLayout() {
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-gray-100 text-gray-900 dark:bg-gray-900 dark:text-gray-100">
 
-      {/* HEADER */}
       <Header />
 
-      {/* CONTENT */}
       <main className="flex-1">
         <Outlet />
       </main>
 
-      {/* FOOTER */}
       <Footer />
 
     </div>

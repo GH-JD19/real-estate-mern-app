@@ -9,7 +9,6 @@ const AgentRejectedProperties = () => {
   const navigate = useNavigate()
 
   const [properties, setProperties] = useState([])
-  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     fetchRejected()
@@ -20,15 +19,12 @@ const AgentRejectedProperties = () => {
 
       const res = await api.get("/properties/my?status=REJECTED")
 
-      setProperties(res.data.properties)
+      setProperties(res.data.properties || [])
 
     } catch (err) {
 
       toast.error("Failed to load rejected properties")
       setProperties([])
-
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -50,13 +46,7 @@ const AgentRejectedProperties = () => {
 
       </div>
 
-      {loading ? (
-
-        <div className="bg-white dark:bg-gray-800 p-6 text-center rounded shadow">
-          Loading...
-        </div>
-
-      ) : properties.length === 0 ? (
+      {properties.length === 0 ? (
 
         <div className="bg-white dark:bg-gray-800 p-6 text-center rounded shadow">
           No Rejected Properties

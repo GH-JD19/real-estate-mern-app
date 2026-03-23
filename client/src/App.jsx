@@ -10,11 +10,14 @@ import ProtectedRoute from "./routes/ProtectedRoute"
 import PublicRoute from "./routes/PublicRoute"
 import AutoRedirect from "./routes/AutoRedirect"
 
+import GlobalLoader from "./pages/common/GlobalLoader"
+
 import Home from "./pages/Home"
 import PropertyListing from "./pages/PropertyListing"
 import PropertyDetails from "./pages/PropertyDetails"
 import Login from "./pages/Login"
 import Register from "./pages/Register"
+import PendingApproval from "./pages/PendingApproval"
 import About from "./pages/About"
 import Terms from "./pages/Terms"
 import Privacy from "./pages/Privacy"
@@ -59,6 +62,7 @@ function ScrollToTop() {
 function App() {
   return (
     <>
+    <GlobalLoader />   {/* 🔥 ADD THIS */}
       <ScrollToTop />
 
       <Routes>
@@ -97,6 +101,15 @@ function App() {
             element={
               <PublicRoute>
                 <Register />
+              </PublicRoute>
+            }
+          />
+
+          <Route
+            path="pending-approval"
+            element={
+              <PublicRoute>
+                <PendingApproval />
               </PublicRoute>
             }
           />

@@ -36,6 +36,7 @@ exports.registerUser = async (req, res) => {
       password,
       role: role || "user",
       isBlocked: false,
+      isActive: false,
     })
 
     const token = generateToken(user._id)
@@ -68,6 +69,13 @@ exports.loginUser = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "Invalid email or password",
+      })
+    }
+
+    if (!user.isActive) {
+      return res.status(403).json({
+        success: false,
+        message: "Your account is pending approval"
       })
     }
 

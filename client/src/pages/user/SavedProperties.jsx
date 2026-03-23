@@ -9,7 +9,6 @@ function SavedProperties() {
   const navigate = useNavigate()
 
   const [properties, setProperties] = useState([])
-  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     fetchWishlist()
@@ -27,13 +26,8 @@ function SavedProperties() {
 
       console.log(err)
       toast.error("Failed to load wishlist")
-
-    } finally {
-
-      setLoading(false)
-
+      setProperties([])
     }
-
   }
 
   const removeWishlist = async (id) => {
@@ -57,10 +51,6 @@ function SavedProperties() {
 
   }
 
-  if (loading) {
-    return <p className="text-gray-500">Loading saved properties...</p>
-  }
-
   return (
 
     <div>
@@ -71,7 +61,7 @@ function SavedProperties() {
 
       {properties.length === 0 ? (
 
-        <div className="bg-white rounded-lg shadow p-10 text-center">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-10 text-center">
 
           <h3 className="text-lg font-semibold mb-2">
             No saved properties
@@ -98,7 +88,7 @@ function SavedProperties() {
 
             <div
               key={p._id}
-              className="bg-white shadow rounded overflow-hidden"
+              className="bg-white dark:bg-gray-800 shadow rounded overflow-hidden"
             >
 
               <img

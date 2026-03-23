@@ -89,36 +89,51 @@ function Login() {
 
   return (
     <>
+      {/* LOADING OVERLAY */}
       {loading && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center">
-          <div className="bg-white px-10 py-8 rounded-2xl shadow-2xl flex flex-col items-center gap-4">
-            <div className="w-16 h-16 border-4 border-[#000080] border-t-transparent rounded-full animate-spin"></div>
-            <p className="text-lg font-semibold text-gray-700">Signing you in...</p>
+          <div className="bg-white dark:bg-gray-800 px-10 py-8 rounded-2xl shadow-2xl flex flex-col items-center gap-4">
+            <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-lg font-semibold text-gray-700 dark:text-gray-300">
+              Signing you in...
+            </p>
           </div>
         </div>
       )}
 
-      <div className="min-h-[80vh] flex items-center justify-center bg-[#f4f6fb] px-4">
+      <div className="min-h-[80vh] flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
 
-        <div className="w-full max-w-5xl grid md:grid-cols-2 bg-white rounded-2xl shadow-xl overflow-hidden">
+        <div className="w-full max-w-5xl grid md:grid-cols-2 bg-white dark:bg-gray-800 rounded-2xl shadow-xl overflow-hidden">
 
-          <div className="hidden md:flex bg-[#000080] text-white flex-col justify-center p-10">
-            <h2 className="text-3xl font-bold mb-4">Welcome Back 👋</h2>
+          {/* LEFT PANEL */}
+          <div className="hidden md:flex bg-gradient-to-br from-blue-600 to-blue-800 text-white flex-col justify-center p-6 md:p-10">
+
+            <h2 className="text-3xl font-bold mb-4">
+              Welcome Back 👋
+            </h2>
+
             <p className="text-lg opacity-90">
               Login to manage your properties, track listings and explore opportunities.
             </p>
+
           </div>
 
+
+          {/* FORM PANEL */}
           <div className="p-8 md:p-12">
 
-            <h2 className="text-2xl font-bold mb-6 text-gray-800">
+            <h2 className="text-2xl font-bold mb-6 text-gray-800 dark:text-white">
               Login to your account
             </h2>
 
             <form onSubmit={handleSubmit} className="space-y-5">
 
+              {/* EMAIL */}
               <div>
-                <label className="text-sm text-gray-600">Email</label>
+
+                <label className="text-sm text-gray-600 dark:text-gray-300">
+                  Email
+                </label>
 
                 <input
                   type="email"
@@ -129,7 +144,7 @@ function Login() {
                     setEmail(value)
                     validateEmail(value)
                   }}
-                  className={`w-full mt-1 p-3 border rounded-lg outline-none
+                  className={`w-full mt-1 p-3 border rounded-lg outline-none focus:ring-2 focus:ring-blue-600 dark:bg-gray-900
                     ${emailValid === false ? "border-red-500" : ""}
                     ${emailValid === true ? "border-green-500" : ""}
                   `}
@@ -142,9 +157,13 @@ function Login() {
 
               </div>
 
+
+              {/* PASSWORD */}
               <div>
 
-                <label className="text-sm text-gray-600">Password</label>
+                <label className="text-sm text-gray-600 dark:text-gray-300">
+                  Password
+                </label>
 
                 <div className="relative">
 
@@ -153,7 +172,7 @@ function Login() {
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full mt-1 p-3 border rounded-lg focus:ring-2 focus:ring-[#000080]"
+                    className="w-full mt-1 p-3 border rounded-lg focus:ring-2 focus:ring-blue-600 outline-none dark:bg-gray-900"
                     placeholder="Enter your password"
                   />
 
@@ -169,6 +188,8 @@ function Login() {
 
               </div>
 
+
+              {/* OPTIONS */}
               <div className="flex justify-between items-center text-sm">
 
                 <div className="flex items-center gap-2">
@@ -177,10 +198,10 @@ function Login() {
                     type="checkbox"
                     checked={keepLoggedIn}
                     onChange={() => setKeepLoggedIn(!keepLoggedIn)}
-                    className="accent-[#000080]"
+                    className="accent-blue-600"
                   />
 
-                  <label className="text-gray-600">
+                  <label className="text-gray-600 dark:text-gray-300">
                     Keep me signed in
                   </label>
 
@@ -188,31 +209,36 @@ function Login() {
 
                 <Link
                   to="/forgot-password"
-                  className="text-[#000080] font-medium hover:underline"
+                  className="text-blue-600 font-medium hover:underline"
                 >
                   Forgot Password?
                 </Link>
 
               </div>
 
+
               {error && (
                 <p className="text-red-500 text-sm">{error}</p>
               )}
 
+
+              {/* LOGIN BUTTON */}
               <button
                 type="submit"
-                className="w-full bg-[#000080] text-white py-3 rounded-lg font-semibold hover:bg-blue-900 transition"
+                className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition"
               >
                 Login
               </button>
 
-              <div className="text-center text-sm text-gray-600">
+
+              {/* REGISTER LINK */}
+              <div className="text-center text-sm text-gray-600 dark:text-gray-300">
 
                 New User?{" "}
 
                 <Link
                   to="/register"
-                  className="text-[#000080] font-semibold hover:underline"
+                  className="text-blue-600 font-semibold hover:underline"
                 >
                   Register
                 </Link>

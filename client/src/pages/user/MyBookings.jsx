@@ -15,10 +15,11 @@ function MyBookings() {
 
       const res = await api.get("/visits/user")
 
-      setBookings(res.data.visits)
+      setBookings(res.data.visits || [])
 
     } catch (err) {
       console.log(err)
+      setBookings([])
     }
 
   }
@@ -32,7 +33,11 @@ function MyBookings() {
       </h2>
 
       {bookings.length === 0 ? (
-        <p>No visits booked</p>
+
+        <div className="bg-white dark:bg-gray-800 p-6 text-center rounded shadow">
+          No visits booked
+        </div>
+
       ) : (
 
         <div className="space-y-6">
@@ -41,7 +46,7 @@ function MyBookings() {
 
             <div
               key={b._id}
-              className="flex bg-white shadow rounded p-4"
+              className="flex bg-white dark:bg-gray-800 shadow rounded p-4"
             >
 
               <div className="flex-1">

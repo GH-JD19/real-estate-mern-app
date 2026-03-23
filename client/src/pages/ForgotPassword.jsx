@@ -12,6 +12,7 @@ function ForgotPassword() {
   const [serverError, setServerError] = useState("")
 
   const validateEmail = (value) => {
+
     const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
     if (!value) {
@@ -24,6 +25,7 @@ function ForgotPassword() {
       setEmailError("")
       setEmailValid(true)
     }
+
   }
 
   const handleSubmit = async (e) => {
@@ -51,32 +53,40 @@ function ForgotPassword() {
       )
 
     } finally {
+
       setLoading(false)
+
     }
 
   }
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center bg-[#f4f6fb] px-4">
+
+    <div className="min-h-[80vh] flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
 
       <div className="w-full max-w-5xl grid md:grid-cols-2 bg-white dark:bg-gray-800 rounded-2xl shadow-xl overflow-hidden">
 
-        {/* LEFT */}
-        <div className="hidden md:flex bg-[#000080] text-white flex-col justify-center p-10">
+        {/* LEFT PANEL */}
+        <div className="hidden md:flex bg-gradient-to-br from-blue-600 to-blue-800 text-white flex-col justify-center p-6 md:p-10">
+
           <h2 className="text-3xl font-bold mb-4">
             Reset Password 🔐
           </h2>
+
           <p className="text-lg opacity-90">
-            Enter your registered email and we'll send you a reset link.
+            Enter your registered email and we'll send you a secure reset link.
           </p>
+
         </div>
 
-        {/* RIGHT */}
+
+        {/* RIGHT PANEL */}
         <div className="p-8 md:p-12">
 
           {!submitted ? (
+
             <>
-              <h2 className="text-2xl font-bold mb-6 text-gray-800 dark:text-gray-200">
+              <h2 className="text-2xl font-bold mb-6 text-gray-800 dark:text-white">
                 Forgot Password
               </h2>
 
@@ -84,7 +94,8 @@ function ForgotPassword() {
 
                 {/* EMAIL */}
                 <div>
-                  <label className="text-sm text-gray-600">
+
+                  <label className="text-sm text-gray-600 dark:text-gray-300">
                     Email
                   </label>
 
@@ -93,10 +104,11 @@ function ForgotPassword() {
                     required
                     value={email}
                     onChange={(e) => {
-                      setEmail(e.target.value)
-                      validateEmail(e.target.value)
+                      const value = e.target.value.toLowerCase()
+                      setEmail(value)
+                      validateEmail(value)
                     }}
-                    className={`w-full mt-1 p-3 border rounded-lg outline-none transition
+                    className={`w-full mt-1 p-3 border rounded-lg outline-none focus:ring-2 focus:ring-blue-600 transition dark:bg-gray-900
                       ${emailValid === false ? "border-red-500" : ""}
                       ${emailValid === true ? "border-green-500" : ""}
                     `}
@@ -111,6 +123,7 @@ function ForgotPassword() {
 
                 </div>
 
+
                 {/* SERVER ERROR */}
                 {serverError && (
                   <p className="text-sm text-red-500">
@@ -118,43 +131,55 @@ function ForgotPassword() {
                   </p>
                 )}
 
+
+                {/* SUBMIT */}
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-[#000080] text-white py-3 rounded-lg font-semibold hover:bg-blue-900 transition disabled:opacity-60"
+                  className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition disabled:opacity-60"
                 >
-                  {loading ? "Sending..." : "Send Reset Link"}
+                  {loading ? "Sending reset link..." : "Send Reset Link"}
                 </button>
 
-                <div className="text-center text-sm text-gray-600">
+
+                {/* LOGIN LINK */}
+                <div className="text-center text-sm text-gray-600 dark:text-gray-300">
+
                   Remember your password?{" "}
+
                   <Link
                     to="/login"
-                    className="text-[#000080] font-semibold hover:underline"
+                    className="text-blue-600 font-semibold hover:underline"
                   >
                     Login
                   </Link>
+
                 </div>
 
               </form>
             </>
+
           ) : (
-            <>
-              <h2 className="text-2xl font-bold mb-4 text-gray-800 dark:text-gray-200">
+
+            <div className="text-center">
+
+              <h2 className="text-2xl font-bold mb-4 text-gray-800 dark:text-white">
                 Check Your Email 📩
               </h2>
 
-              <p className="text-gray-600 mb-6">
+              <p className="text-gray-600 dark:text-gray-300 mb-8">
                 A password reset link has been sent to your email address.
               </p>
 
               <Link
                 to="/login"
-                className="block text-center bg-[#000080] text-white py-3 rounded-lg font-semibold hover:bg-blue-900 transition"
+                className="inline-block bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition"
               >
                 Back to Login
               </Link>
-            </>
+
+            </div>
+
           )}
 
         </div>
@@ -162,7 +187,9 @@ function ForgotPassword() {
       </div>
 
     </div>
+
   )
+
 }
 
 export default ForgotPassword

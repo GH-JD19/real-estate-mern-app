@@ -6,101 +6,135 @@ function Footer() {
 
   const { user } = useAuth()
 
+  const linkClass =
+    "hover:text-blue-600 transition-colors duration-200"
+
   return (
-    <footer className="bg-[#000080] dark:bg-gray-900 text-white transition-all duration-300">
+    <footer className="bg-white dark:bg-gray-900 border-t dark:border-gray-700">
 
-      {/* Top Section */}
-      <div className="container mx-auto px-6 py-10 grid gap-8 md:grid-cols-3">
+      <div className="max-w-7xl mx-auto px-6 py-14 grid gap-10 md:grid-cols-3">
 
-        {/* Brand */}
+        {/* BRAND */}
         <div>
-          <h2 className="text-xl font-bold mb-3">
+
+          <h2 className="text-2xl font-bold text-blue-600 mb-4">
             RealEstate
           </h2>
-          <p className="text-sm text-gray-300 dark:text-gray-400 leading-relaxed">
-            Find your dream property easily and securely.
-            Buy, rent, and explore properties with confidence.
+
+          <p className="text-gray-600 dark:text-gray-400 leading-relaxed max-w-sm">
+            Discover your dream property easily and securely.
+            Buy, rent and explore verified listings with confidence.
           </p>
+
         </div>
 
-        {/* Quick Links */}
+        {/* QUICK LINKS */}
         <div>
-          <h3 className="font-semibold mb-3">
+
+          <h3 className="font-semibold text-gray-800 dark:text-white mb-4">
             Quick Links
           </h3>
 
-          <ul className="space-y-2 text-sm">
+          <ul className="space-y-2 text-gray-600 dark:text-gray-400">
 
-            {/* GUEST */}
             {!user && (
               <>
-                <li><NavLink to="/" className="hover:text-[#4DA8FF]">Home</NavLink></li>
-                <li><NavLink to="/about" className="hover:text-[#4DA8FF]">About</NavLink></li>
-                <li><NavLink to="/terms" className="hover:text-[#4DA8FF]">Terms & Conditions</NavLink></li>
-                <li><NavLink to="/privacy" className="hover:text-[#4DA8FF]">Privacy Policy</NavLink></li>
-                <li><NavLink to="/login" className="hover:text-[#4DA8FF]">Login</NavLink></li>
-                <li><NavLink to="/register" className="hover:text-[#4DA8FF]">Register</NavLink></li>
+                <li><NavLink to="/" className={linkClass}>Home</NavLink></li>
+                <li><NavLink to="/about" className={linkClass}>About</NavLink></li>
+                <li><NavLink to="/terms" className={linkClass}>Terms</NavLink></li>
+                <li><NavLink to="/privacy" className={linkClass}>Privacy</NavLink></li>
+                <li><NavLink to="/login" className={linkClass}>Login</NavLink></li>
+                <li><NavLink to="/register" className={linkClass}>Register</NavLink></li>
               </>
             )}
 
-            {/* USER */}
             {user?.role === "user" && (
               <>
-                <li><NavLink to="/user-dashboard" className="hover:text-[#4DA8FF]">Dashboard</NavLink></li>
-                <li><NavLink to="/user/my-properties" className="hover:text-[#4DA8FF]">My Properties</NavLink></li>
-                <li><NavLink to="/user/saved" className="hover:text-[#4DA8FF]">Wishlist</NavLink></li>
-                <li><NavLink to="/user/bookings" className="hover:text-[#4DA8FF]">My Visits</NavLink></li>
-                <li><NavLink to="/user/profile" className="hover:text-[#4DA8FF]">Profile</NavLink></li>
+                <li><NavLink to="/user-dashboard" className={linkClass}>Dashboard</NavLink></li>
+                <li><NavLink to="/user/saved" className={linkClass}>Wishlist</NavLink></li>
+                <li><NavLink to="/user/bookings" className={linkClass}>My Visits</NavLink></li>
+                <li><NavLink to="/user/profile" className={linkClass}>Profile</NavLink></li>
               </>
             )}
 
-            {/* AGENT */}
             {user?.role === "agent" && (
               <>
-                <li><NavLink to="/agent-dashboard" className="hover:text-[#4DA8FF]">Dashboard</NavLink></li>
-                <li><NavLink to="/agent/properties" className="hover:text-[#4DA8FF]">Manage Properties</NavLink></li>
-                <li><NavLink to="/agent/bookings" className="hover:text-[#4DA8FF]">Bookings</NavLink></li>
+                <li><NavLink to="/agent-dashboard" className={linkClass}>Dashboard</NavLink></li>
+                <li><NavLink to="/agent/manage-properties" className={linkClass}>Manage Properties</NavLink></li>
+                <li><NavLink to="/agent/bookings" className={linkClass}>Bookings</NavLink></li>
               </>
             )}
 
-            {/* ADMIN */}
             {user?.role === "admin" && (
               <>
-                <li><NavLink to="/admin-dashboard" className="hover:text-[#4DA8FF]">Dashboard</NavLink></li>
-                <li><NavLink to="/admin/properties" className="hover:text-[#4DA8FF]">Properties</NavLink></li>
-                <li><NavLink to="/admin/users" className="hover:text-[#4DA8FF]">Users</NavLink></li>
-                <li><NavLink to="/admin/analytics" className="hover:text-[#4DA8FF]">Analytics</NavLink></li>
+                <li><NavLink to="/admin-dashboard" className={linkClass}>Dashboard</NavLink></li>
+                <li><NavLink to="/admin/properties" className={linkClass}>Properties</NavLink></li>
+                <li><NavLink to="/admin/users" className={linkClass}>Users</NavLink></li>
+                <li><NavLink to="/admin/analytics" className={linkClass}>Analytics</NavLink></li>
               </>
             )}
 
           </ul>
+
         </div>
 
-        {/* Contact + Social */}
+        {/* CONTACT */}
         <div>
-          <h3 className="font-semibold mb-3">
+
+          <h3 className="font-semibold text-gray-800 dark:text-white mb-4">
             Contact
           </h3>
-          <p className="text-sm text-gray-300 dark:text-gray-400">
+
+          <p className="text-gray-600 dark:text-gray-400">
             support@realestate.com
           </p>
-          <p className="text-sm mt-2 text-gray-300 dark:text-gray-400">
+
+          <p className="text-gray-600 dark:text-gray-400 mt-2">
             +91 9876543210
           </p>
 
-          <div className="flex gap-4 mt-4 text-lg">
-            <a href="#" className="hover:text-[#4DA8FF] transition"><FaFacebookF /></a>
-            <a href="#" className="hover:text-[#4DA8FF] transition"><FaInstagram /></a>
-            <a href="#" className="hover:text-[#4DA8FF] transition"><FaTwitter /></a>
-            <a href="#" className="hover:text-[#4DA8FF] transition"><FaLinkedinIn /></a>
+          {/* SOCIAL ICONS */}
+          <div className="flex gap-3 mt-5 text-gray-600 dark:text-gray-400">
+
+            <a
+              href="#"
+              className="p-2 rounded-full border border-gray-200 dark:border-gray-700 hover:bg-blue-600 hover:text-white hover:border-blue-600 transition duration-200"
+            >
+              <FaFacebookF size={14} />
+            </a>
+
+            <a
+              href="#"
+              className="p-2 rounded-full border border-gray-200 dark:border-gray-700 hover:bg-blue-600 hover:text-white hover:border-blue-600 transition duration-200"
+            >
+              <FaInstagram size={14} />
+            </a>
+
+            <a
+              href="#"
+              className="p-2 rounded-full border border-gray-200 dark:border-gray-700 hover:bg-blue-600 hover:text-white hover:border-blue-600 transition duration-200"
+            >
+              <FaTwitter size={14} />
+            </a>
+
+            <a
+              href="#"
+              className="p-2 rounded-full border border-gray-200 dark:border-gray-700 hover:bg-blue-600 hover:text-white hover:border-blue-600 transition duration-200"
+            >
+              <FaLinkedinIn size={14} />
+            </a>
+
           </div>
+
         </div>
 
       </div>
 
-      {/* Bottom */}
-      <div className="border-t border-blue-900 dark:border-gray-700 text-center text-sm py-4 bg-[#000066] dark:bg-gray-800">
+      {/* BOTTOM BAR */}
+      <div className="border-t dark:border-gray-700 py-4 text-center text-gray-500 text-sm">
+
         © {new Date().getFullYear()} RealEstate. All rights reserved.
+
       </div>
 
     </footer>

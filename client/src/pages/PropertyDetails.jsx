@@ -36,7 +36,6 @@ function PropertyDetails() {
   const [visitMessage, setVisitMessage] = useState("")
 
 
-  // ================= FETCH PROPERTY =================
   useEffect(() => {
 
     const fetchProperty = async () => {
@@ -63,7 +62,6 @@ function PropertyDetails() {
   }, [id])
 
 
-  // ================= CHECK WISHLIST =================
   useEffect(() => {
 
     const checkWishlist = async () => {
@@ -95,7 +93,6 @@ function PropertyDetails() {
   }, [property, token])
 
 
-  // ================= WISHLIST =================
   const handleWishlist = async () => {
 
     if (!token) {
@@ -126,7 +123,6 @@ function PropertyDetails() {
   }
 
 
-  // ================= CONTACT AGENT =================
   const handleInquiry = async (e) => {
 
     e.preventDefault()
@@ -160,7 +156,6 @@ function PropertyDetails() {
   }
 
 
-  // ================= BOOK VISIT =================
   const handleVisit = async (e) => {
 
     e.preventDefault()
@@ -193,23 +188,29 @@ function PropertyDetails() {
   }
 
 
-  // ================= LOADING =================
   if (loading) {
 
     return (
-      <div className="text-center py-20 text-gray-500">
-        Loading property...
+
+      <div className="flex justify-center py-24">
+
+        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+
       </div>
+
     )
 
   }
 
+
   if (!property) {
 
     return (
-      <div className="text-center py-20 text-red-500">
+
+      <div className="text-center py-24 text-red-500">
         Property not found
       </div>
+
     )
 
   }
@@ -217,20 +218,20 @@ function PropertyDetails() {
 
   return (
 
-    <div className="bg-[#f4f6fb] min-h-screen py-10">
+    <div className="bg-gray-50 dark:bg-gray-900 min-h-screen py-14">
 
-      <div className="container mx-auto px-4 md:px-6 max-w-6xl">
+      <div className="max-w-7xl mx-auto px-6">
 
         {/* TITLE */}
-        <div className="flex justify-between items-start mb-6">
+        <div className="flex justify-between items-start mb-8">
 
           <div>
 
-            <h1 className="text-3xl font-bold text-gray-800">
+            <h1 className="text-3xl font-bold text-gray-800 dark:text-white">
               {property.title}
             </h1>
 
-            <p className="flex items-center text-gray-500 mt-2">
+            <p className="flex items-center text-gray-500 dark:text-gray-400 mt-2">
               <MapPin size={16} className="mr-1" />
               {property.location?.lat}, {property.location?.lng}
             </p>
@@ -248,16 +249,16 @@ function PropertyDetails() {
 
 
         {/* IMAGE GALLERY */}
-        <div className="mb-10">
+        <div className="mb-12">
 
           <img
             src={getImageUrl(property?.media?.images?.[activeImage])}
             onError={(e)=>e.target.src="/no-image.jpg"}
             alt="property"
-            className="w-full h-[420px] object-cover rounded-xl shadow"
+            className="w-full h-[420px] object-cover rounded-xl shadow-lg"
           />
 
-          <div className="flex gap-3 mt-4 overflow-x-auto">
+          <div className="flex gap-3 mt-4 overflow-x-auto pb-2">
 
             {property?.media?.images?.map((img, index) => (
 
@@ -267,6 +268,7 @@ function PropertyDetails() {
                 alt=""
                 onClick={() => setActiveImage(index)}
                 className={`w-28 h-20 object-cover rounded cursor-pointer border 
+                hover:scale-105 transition
                 ${activeImage === index ? "border-blue-600" : "border-gray-200"}`}
               />
 
@@ -280,22 +282,22 @@ function PropertyDetails() {
         {/* PROPERTY INFO */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-10">
 
-          <div className="flex items-center gap-2 bg-white shadow rounded-lg p-4">
+          <div className="flex items-center gap-3 bg-white dark:bg-gray-800 shadow rounded-xl p-5">
             <BedDouble size={20} />
             <span>{property.beds || 0} Beds</span>
           </div>
 
-          <div className="flex items-center gap-2 bg-white shadow rounded-lg p-4">
+          <div className="flex items-center gap-3 bg-white dark:bg-gray-800 shadow rounded-xl p-5">
             <Bath size={20} />
             <span>{property.baths || 0} Baths</span>
           </div>
 
-          <div className="flex items-center gap-2 bg-white shadow rounded-lg p-4">
+          <div className="flex items-center gap-3 bg-white dark:bg-gray-800 shadow rounded-xl p-5">
             <Maximize size={20} />
             <span>{property.area || 0} sqft</span>
           </div>
 
-          <div className="flex items-center gap-2 bg-white shadow rounded-lg p-4">
+          <div className="flex items-center gap-3 bg-white dark:bg-gray-800 shadow rounded-xl p-5">
             <MapPin size={20} />
             <span>{property.type}</span>
           </div>
@@ -304,18 +306,19 @@ function PropertyDetails() {
 
 
         {/* PRICE */}
-        <p className="text-3xl font-bold text-blue-700 mb-6">
+        <p className="text-3xl font-bold text-blue-600 mb-10">
           ₹ {property.price?.toLocaleString()}
         </p>
 
 
-        {/* VISIT + INQUIRY SECTION */}
-        <div className="grid md:grid-cols-2 gap-10 mb-12">
+        {/* CONTACT + VISIT */}
+        <div className="grid md:grid-cols-2 gap-10 mb-14">
 
-          {/* CONTACT AGENT */}
-          <form onSubmit={handleInquiry} className="bg-white p-6 rounded-xl shadow space-y-4">
 
-            <h3 className="text-xl font-semibold">
+          {/* CONTACT FORM */}
+          <form onSubmit={handleInquiry} className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow space-y-4">
+
+            <h3 className="text-xl font-semibold dark:text-white">
               Contact Agent
             </h3>
 
@@ -325,7 +328,7 @@ function PropertyDetails() {
               required
               value={phone}
               onChange={(e)=>setPhone(e.target.value)}
-              className="w-full p-3 border rounded-lg"
+              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-600 outline-none"
             />
 
             <textarea
@@ -333,12 +336,12 @@ function PropertyDetails() {
               required
               value={message}
               onChange={(e)=>setMessage(e.target.value)}
-              className="w-full p-3 border rounded-lg"
+              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-600 outline-none"
             />
 
             <button
               type="submit"
-              className="bg-[#000080] hover:bg-blue-900 text-white py-3 w-full rounded-lg font-semibold"
+              className="bg-blue-600 hover:bg-blue-700 text-white py-3 w-full rounded-lg font-semibold transition"
             >
               Send Inquiry
             </button>
@@ -346,10 +349,10 @@ function PropertyDetails() {
           </form>
 
 
-          {/* SCHEDULE VISIT */}
-          <form onSubmit={handleVisit} className="bg-white p-6 rounded-xl shadow space-y-4">
+          {/* VISIT FORM */}
+          <form onSubmit={handleVisit} className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow space-y-4">
 
-            <h3 className="text-xl font-semibold flex items-center gap-2">
+            <h3 className="text-xl font-semibold flex items-center gap-2 dark:text-white">
               <Calendar size={18} />
               Schedule Visit
             </h3>
@@ -359,19 +362,19 @@ function PropertyDetails() {
               required
               value={visitDate}
               onChange={(e)=>setVisitDate(e.target.value)}
-              className="w-full p-3 border rounded-lg"
+              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-600 outline-none"
             />
 
             <textarea
               placeholder="Message (optional)"
               value={visitMessage}
               onChange={(e)=>setVisitMessage(e.target.value)}
-              className="w-full p-3 border rounded-lg"
+              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-600 outline-none"
             />
 
             <button
               type="submit"
-              className="bg-green-600 text-white py-3 w-full rounded-lg font-semibold"
+              className="bg-green-600 hover:bg-green-700 text-white py-3 w-full rounded-lg font-semibold transition"
             >
               Book Visit
             </button>
@@ -388,7 +391,7 @@ function PropertyDetails() {
             title="map"
             width="100%"
             height="350"
-            className="rounded-xl border"
+            className="rounded-xl border shadow"
             loading="lazy"
             src={`https://maps.google.com/maps?q=${property.location.lat},${property.location.lng}&z=15&output=embed`}
           ></iframe>

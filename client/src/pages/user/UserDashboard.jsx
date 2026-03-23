@@ -28,16 +28,24 @@ const UserDashboard = () => {
 
       const res = await api.get("/users/dashboard-stats")
 
-      setStats(res.data)
+      const data = res.data || {}
+
+      setStats({
+        wishlist: data.wishlist || 0,
+        visits: data.visits || 0,
+        profileComplete: data.profileComplete || 0
+      })
 
       setChartData([
-        { name: "Wishlist", value: res.data.wishlist },
-        { name: "Visits", value: res.data.visits },
-        { name: "Profile %", value: res.data.profileComplete }
+        { name: "Wishlist", value: data.wishlist || 0 },
+        { name: "Visits", value: data.visits || 0 },
+        { name: "Profile %", value: data.profileComplete || 0 }
       ])
 
     } catch (err) {
       console.log(err)
+      setStats({ wishlist: 0, visits: 0, profileComplete: 0 })
+      setChartData([])
     }
   }
 
@@ -79,7 +87,7 @@ const UserDashboard = () => {
         Activity Overview
       </h3>
 
-      <div className="bg-white p-4 rounded shadow">
+      <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
 
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={chartData}>
@@ -99,7 +107,7 @@ const UserDashboard = () => {
 const Card = ({ icon, title, value, onClick }) => (
   <div
     onClick={onClick}
-    className="bg-white p-6 rounded-xl shadow hover:shadow-lg cursor-pointer transition"
+    className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow hover:shadow-lg cursor-pointer transition"
   >
     <div className="text-3xl mb-3">{icon}</div>
     <h3 className="text-lg font-semibold">{title}</h3>

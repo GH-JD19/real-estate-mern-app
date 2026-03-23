@@ -46,8 +46,12 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
       : "/user-dashboard"
 
   const linkClass = ({ isActive }) =>
-    `flex items-center gap-3 p-2 rounded transition 
-    ${isActive ? "bg-blue-700" : "hover:bg-blue-700"}`
+    `flex items-center gap-3 p-2 rounded-lg transition
+    ${
+      isActive
+        ? "bg-blue-50 dark:bg-gray-800 text-blue-600 dark:text-blue-400 font-medium"
+        : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+    }`
 
   const handleMobileClick = () => {
     if (window.innerWidth < 768) {
@@ -58,7 +62,9 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
   return (
     <div
       className={`
-        bg-blue-900 dark:bg-gray-800 text-white
+        bg-white dark:bg-gray-900
+        border-r border-gray-200 dark:border-gray-700
+        text-gray-700 dark:text-gray-300
         transition-all duration-300
         ${collapsed ? "w-20" : "w-64"}
         min-h-[calc(100vh-64px)]
@@ -69,7 +75,7 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
       {/* Collapse Button */}
       <button
         onClick={() => setCollapsed(!collapsed)}
-        className="mb-6 text-xl"
+        className="mb-6 text-xl text-gray-600 dark:text-gray-300 hover:text-blue-600"
       >
         <FaBars />
       </button>
@@ -86,7 +92,7 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
           {!collapsed && <span>Dashboard</span>}
         </NavLink>
 
-        {/* ================= USER MENU ================= */}
+        {/* USER MENU */}
         {user.role === "user" && (
           <>
             <NavLink
@@ -109,7 +115,7 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
           </>
         )}
 
-        {/* ================= AGENT MENU ================= */}
+        {/* AGENT MENU */}
         {user.role === "agent" && (
           <>
             <NavLink
@@ -132,7 +138,7 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
           </>
         )}
 
-        {/* ================= ADMIN MENU ================= */}
+        {/* ADMIN MENU */}
         {user.role === "admin" && (
           <>
             <NavLink
@@ -164,12 +170,12 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
           </>
         )}
 
-        {/* ================= SETTINGS ================= */}
+        {/* SETTINGS */}
         <div className="relative">
 
           <div
             onClick={() => setSettingsOpen(!settingsOpen)}
-            className="flex items-center gap-3 p-2 rounded hover:bg-blue-700 cursor-pointer"
+            className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer"
           >
             <FaCog />
             {!collapsed && <span>Settings</span>}
@@ -202,11 +208,11 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
 
           {/* Collapsed Sidebar Dropdown */}
           {collapsed && settingsOpen && (
-            <div className="absolute left-16 top-0 bg-blue-900 border border-blue-700 rounded shadow-lg w-48 z-50">
+            <div className="absolute left-16 top-0 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded shadow-lg w-48 z-50">
 
               <NavLink
                 to={`/${user.role}/profile`}
-                className="flex items-center gap-2 px-4 py-2 hover:bg-blue-700"
+                className="flex items-center gap-2 px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800"
                 onClick={() => {
                   setSettingsOpen(false)
                   handleMobileClick()
@@ -217,7 +223,7 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
 
               <NavLink
                 to={`/${user.role}/change-password`}
-                className="flex items-center gap-2 px-4 py-2 hover:bg-blue-700"
+                className="flex items-center gap-2 px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800"
                 onClick={() => {
                   setSettingsOpen(false)
                   handleMobileClick()
