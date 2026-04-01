@@ -9,11 +9,10 @@ const AgentAllProperties = () => {
   const navigate = useNavigate()
 
   const [properties, setProperties] = useState([])
-
   const [page, setPage] = useState(1)
   const [pages, setPages] = useState(1)
-
   const [total, setTotal] = useState(0)
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     fetchProperties()
@@ -21,6 +20,7 @@ const AgentAllProperties = () => {
 
   const fetchProperties = async () => {
     try {
+      setLoading(true)
 
       const res = await api.get(`/properties/my?page=${page}&limit=6`)
 
@@ -29,15 +29,15 @@ const AgentAllProperties = () => {
       setTotal(res.data.total || 0)
 
     } catch (err) {
-
       toast.error("Failed to load properties")
       setProperties([])
-
+    } finally {
+      setLoading(false)
     }
   }
 
   const statusColor = (status) => {
-    switch(status) {
+    switch (status) {
       case "APPROVED":
         return "bg-green-500"
       case "PENDING":
@@ -50,51 +50,66 @@ const AgentAllProperties = () => {
   }
 
   return (
-    <div className="bg-gray-100 dark:bg-gray-900 min-h-screen p-6">
+    <div className="bg-gray-100 dark:bg-gray-900 min-h-screen px-4 sm:px-6 lg:px-10 py-6">
 
-      <div className="flex justify-between items-center mb-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
 
-        <h2 className="text-2xl font-bold">
-          All Properties ({total})
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-white">
+          All Properties
+          <span className="ml-2 text-blue-600">({total})</span>
         </h2>
 
         <button
           onClick={() => navigate("/agent/dashboard")}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-300 dark:bg-gray-700 rounded-lg"
+          className="flex items-center gap-2 px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition rounded-lg text-sm font-medium"
         >
-          <FaArrowLeft /> Back
+          <FaArrowLeft />
+          Back
         </button>
 
       </div>
 
-      {properties.length === 0 ? (
-
-        <div className="bg-white dark:bg-gray-800 p-6 text-center rounded shadow">
-          No Properties Found
+      {/* Empty State */}
+      {!loading && properties.length === 0 ? (
+        <div className="bg-white dark:bg-gray-800 p-6 text-center rounded-xl shadow-sm">
+          <p className="text-gray-500 dark:text-gray-300">
+            No Properties Found
+          </p>
         </div>
-
       ) : (
 
         <>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* Grid */}
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
 
             {properties.map(property => (
 
               <div
                 key={property._id}
-                className="bg-white dark:bg-gray-800 shadow-md rounded-xl overflow-hidden"
+                className="bg-white dark:bg-gray-800 shadow-sm hover:shadow-lg transition rounded-xl overflow-hidden"
               >
 
-                <img
-                  src={property.media?.images?.[0] || "/no-image.jpg"}
-                  alt={property.title}
-                  className="h-48 w-full object-cover"
-                />
+                {/* Image */}
+                <div className="relative">
+                  <img
+                    src={property.media?.images?.[0] || "/no-image.jpg"}
+                    alt={property.title}
+                    className="h-44 sm:h-48 w-full object-cover"
+                    onError={(e) => e.target.src = "/no-image.jpg"}
+                  />
 
-                <div className="p-4">
+                  <span
+                    className={`absolute top-3 right-3 px-3 py-1 text-xs text-white rounded-full ${statusColor(property.status)}`}
+                  >
+                    {property.status}
+                  </span>
+                </div>
 
-                  <h3 className="font-semibold text-lg mb-1">
+                {/* Content */}
+                <div className="p-4 space-y-2">
+
+                  <h3 className="font-semibold text-base sm:text-lg text-gray-800 dark:text-white line-clamp-1">
                     {property.title}
                   </h3>
 
@@ -102,15 +117,9 @@ const AgentAllProperties = () => {
                     ₹ {property.price?.toLocaleString()}
                   </p>
 
-                  <p className="text-sm mt-2 text-gray-600 dark:text-gray-300">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
                     {property.city}, {property.state}
                   </p>
-
-                  <span
-                    className={`inline-block mt-4 px-3 py-1 text-white text-sm rounded ${statusColor(property.status)}`}
-                  >
-                    {property.status}
-                  </span>
 
                 </div>
 
@@ -120,14 +129,21 @@ const AgentAllProperties = () => {
 
           </div>
 
+          {/* Loading */}
+          {loading && (
+            <div className="text-center mt-6 text-gray-500">
+              Loading properties...
+            </div>
+          )}
+
           {/* Pagination */}
           {pages > 1 && (
-            <div className="flex justify-center items-center mt-8 gap-2 flex-wrap">
+            <div className="flex justify-center items-center mt-10 gap-2 flex-wrap">
 
               <button
                 disabled={page === 1}
                 onClick={() => setPage(prev => prev - 1)}
-                className="px-4 py-2 bg-gray-300 dark:bg-gray-700 rounded disabled:opacity-50"
+                className="px-3 sm:px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition rounded-md disabled:opacity-50 text-sm"
               >
                 Prev
               </button>
@@ -136,10 +152,10 @@ const AgentAllProperties = () => {
                 <button
                   key={x + 1}
                   onClick={() => setPage(x + 1)}
-                  className={`px-4 py-2 rounded ${
+                  className={`px-3 sm:px-4 py-2 rounded-md text-sm font-medium transition ${
                     page === x + 1
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-200 dark:bg-gray-700"
+                      ? "bg-blue-600 text-white shadow"
+                      : "bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600"
                   }`}
                 >
                   {x + 1}
@@ -149,7 +165,7 @@ const AgentAllProperties = () => {
               <button
                 disabled={page === pages}
                 onClick={() => setPage(prev => prev + 1)}
-                className="px-4 py-2 bg-gray-300 dark:bg-gray-700 rounded disabled:opacity-50"
+                className="px-3 sm:px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition rounded-md disabled:opacity-50 text-sm"
               >
                 Next
               </button>
@@ -158,7 +174,6 @@ const AgentAllProperties = () => {
           )}
 
         </>
-
       )}
 
     </div>

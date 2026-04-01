@@ -6,8 +6,8 @@ const AuthContext = createContext()
 export const AuthProvider = ({ children }) => {
 
   const getStoredToken = () =>
-    localStorage.getItem("token") ||
-    sessionStorage.getItem("token")
+    localStorage.getItem("accessToken") ||
+    sessionStorage.getItem("accessToken")
 
   const getStoredUser = () => {
     const stored = localStorage.getItem("user")
@@ -16,6 +16,7 @@ export const AuthProvider = ({ children }) => {
 
   const [token, setToken] = useState(getStoredToken())
   const [user, setUser] = useState(getStoredUser())
+  const [loading, setLoading] = useState(true) // ✅ FIXED
 
   // 🔹 Load user if token exists but user missing
   useEffect(() => {
@@ -27,7 +28,10 @@ export const AuthProvider = ({ children }) => {
           localStorage.setItem("user", JSON.stringify(data.user))
         }
       } catch (error) {
+        console.log("Auth error:", error)
         logout()
+      } finally {
+        setLoading(false) // ✅ NOW VALID
       }
     }
 
@@ -35,19 +39,27 @@ export const AuthProvider = ({ children }) => {
   }, [token])
 
   // 🔹 LOGIN
-  const login = (userData, jwtToken, keepLoggedIn = true) => {
+  const login = (userData, accessToken, refreshToken, keepLoggedIn = true) => {
 
     if (keepLoggedIn) {
-      localStorage.setItem("token", jwtToken)
+      localStorage.setItem("accessToken", accessToken)
+      localStorage.setItem("refreshToken", refreshToken)
       localStorage.setItem("user", JSON.stringify(userData))
-      sessionStorage.removeItem("token")
+
+      sessionStorage.removeItem("accessToken")
+      sessionStorage.removeItem("refreshToken")
+
     } else {
-      sessionStorage.setItem("token", jwtToken)
-      localStorage.removeItem("token")
+      sessionStorage.setItem("accessToken", accessToken)
+      sessionStorage.setItem("refreshToken", refreshToken)
+
+      localStorage.removeItem("accessToken")
+      localStorage.removeItem("refreshToken")
+
       localStorage.setItem("user", JSON.stringify(userData))
     }
 
-    setToken(jwtToken)
+    setToken(accessToken)
     setUser(userData)
   }
 
@@ -56,13 +68,19 @@ export const AuthProvider = ({ children }) => {
     setUser(null)
     setToken(null)
 
-    localStorage.removeItem("token")
-    sessionStorage.removeItem("token")
+    localStorage.removeItem("accessToken")
+    localStorage.removeItem("refreshToken")
+    sessionStorage.removeItem("accessToken")
+    sessionStorage.removeItem("refreshToken")
     localStorage.removeItem("user")
   }
 
+  // ✅ PREVENT BLANK SCREEN WHILE LOADING
+  if (loading) return null
+
+  // ✅ THIS WAS MISSING (CRITICAL)
   return (
-    <AuthContext.Provider value={{ user, token, login, logout }}>
+    <AuthContext.Provider value={{ user, token, login, logout, loading }}>
       {children}
     </AuthContext.Provider>
   )

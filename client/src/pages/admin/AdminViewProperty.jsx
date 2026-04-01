@@ -2,9 +2,11 @@ import { useEffect, useState } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import { FaArrowLeft } from "react-icons/fa"
 import api from "../../services/api"
+import socket from "../../services/socket"
 import { toast } from "react-toastify"
 
 const AdminViewProperty = () => {
+
   const { id } = useParams()
   const navigate = useNavigate()
 
@@ -15,10 +17,6 @@ const AdminViewProperty = () => {
   const [rejectReason, setRejectReason] = useState("")
   const [showRejectBox, setShowRejectBox] = useState(false)
   const [adminNote, setAdminNote] = useState("")
-
-  useEffect(() => {
-    fetchProperty()
-  }, [id])
 
   const fetchProperty = async () => {
     try {
@@ -31,6 +29,29 @@ const AdminViewProperty = () => {
       setLoading(false)
     }
   }
+
+  // 🚀 REAL-TIME + INITIAL LOAD
+  useEffect(() => {
+
+    fetchProperty()
+
+    if (!socket.connected) {
+      socket.connect()
+      socket.emit("joinAdmin")
+    }
+
+    const handleUpdate = () => {
+      console.log("Realtime property update")
+      fetchProperty()
+    }
+
+    socket.on("dashboard:update", handleUpdate)
+
+    return () => {
+      socket.off("dashboard:update", handleUpdate)
+    }
+
+  }, [id])
 
   const safeValue = (value) => {
     if (value === null || value === undefined || value === "" || value === 0) {
@@ -119,44 +140,58 @@ const AdminViewProperty = () => {
     }
   }
 
-  if (loading) return <div className="p-6 text-center">Loading...</div>
-  if (!property) return <div className="p-6 text-center">Property not found</div>
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center text-gray-400">
+      Loading property details...
+    </div>
+  )
+
+  if (!property) return (
+    <div className="min-h-screen flex items-center justify-center text-gray-400">
+      Property not found
+    </div>
+  )
 
   const isLand = property.type === "LAND" || property.type === "PLOT"
 
   return (
-    <div className="bg-gray-100 dark:bg-gray-900 min-h-screen p-6 text-gray-900 dark:text-white">
+    <div className="min-h-screen bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-900 dark:to-gray-950 p-6 text-gray-900 dark:text-white">
 
       {/* HEADER */}
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold flex items-center gap-3">
-          {property.title}
+      <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
 
-          {property.featured && new Date(property.featuredTill) > new Date() && (
-            <span className="bg-yellow-500 text-white px-3 py-1 rounded text-xs">
-              FEATURED
-            </span>
-          )}
+        <div>
+          <h2 className="text-3xl font-bold flex flex-wrap items-center gap-3">
+
+            {property.title}
+
+            {property.featured && new Date(property.featuredTill) > new Date() && (
+              <span className="bg-yellow-500 text-white px-3 py-1 rounded-full text-xs shadow">
+                FEATURED
+              </span>
+            )}
+
+          </h2>
 
           {property.featured && property.featuredTill && (
-            <p className="text-sm text-yellow-600 mt-2">
+            <p className="text-sm text-yellow-600 mt-1">
               Featured till: {new Date(property.featuredTill).toLocaleDateString()}
             </p>
           )}
-        </h2>
+        </div>
 
         <button
           onClick={() => navigate("/admin/properties")}
           className="flex items-center gap-2 px-4 py-2 bg-gray-300 dark:bg-gray-700 rounded-lg hover:bg-gray-400 dark:hover:bg-gray-600 transition"
         >
-          <FaArrowLeft />
-          Back
+          <FaArrowLeft /> Back
         </button>
+
       </div>
 
       {/* STATUS */}
       <div className="mb-6">
-        <span className={`text-white px-4 py-1 rounded text-sm ${getStatusBadge(property.status)}`}>
+        <span className={`text-white px-4 py-1 rounded-full text-sm shadow ${getStatusBadge(property.status)}`}>
           {property.status}
         </span>
       </div>
@@ -168,7 +203,7 @@ const AdminViewProperty = () => {
           <img
             src={property.media?.images?.[activeImage] || "/no-image.jpg"}
             alt="Property"
-            className="w-full h-96 object-cover rounded-xl shadow"
+            className="w-full h-96 object-cover rounded-2xl shadow"
           />
 
           {property.media?.images?.length > 0 && (
@@ -177,7 +212,6 @@ const AdminViewProperty = () => {
                 <img
                   key={index}
                   src={img}
-                  alt="thumb"
                   onClick={() => setActiveImage(index)}
                   className={`w-24 h-20 object-cover rounded cursor-pointer border-2 ${
                     activeImage === index ? "border-blue-500" : "border-transparent"
@@ -188,11 +222,11 @@ const AdminViewProperty = () => {
           )}
         </div>
 
-        {/* DETAILS SECTION */}
+        {/* DETAILS */}
         <div className="space-y-6">
 
           {/* PROPERTY INFO */}
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow">
             <h3 className="text-xl font-semibold mb-4">Property Overview</h3>
 
             <div className="grid grid-cols-2 gap-4 text-sm">
@@ -220,7 +254,7 @@ const AdminViewProperty = () => {
           </div>
 
           {/* LOCATION */}
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow">
             <h3 className="text-xl font-semibold mb-4">Location</h3>
             <p><strong>City:</strong> {safeValue(property.city)}</p>
             <p><strong>State:</strong> {safeValue(property.state)}</p>
@@ -231,7 +265,7 @@ const AdminViewProperty = () => {
 
           {/* AMENITIES */}
           {property.amenities?.length > 0 && (
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow">
               <h3 className="text-xl font-semibold mb-4">Amenities</h3>
               <div className="flex flex-wrap gap-2">
                 {property.amenities.map((a, i) => (
@@ -244,7 +278,7 @@ const AdminViewProperty = () => {
           )}
 
           {/* OWNER INFO */}
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow">
             <h3 className="text-xl font-semibold mb-4">Owner Information</h3>
             <p><strong>Name:</strong> {safeValue(property.createdBy?.name)}</p>
             <p><strong>Email:</strong> {safeValue(property.createdBy?.email)}</p>
@@ -252,10 +286,9 @@ const AdminViewProperty = () => {
           </div>
 
           {/* ADMIN NOTE */}
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow">
             <h3 className="text-xl font-semibold mb-4">Admin Notes</h3>
             <textarea
-              placeholder="Add internal admin notes..."
               value={adminNote}
               onChange={(e) => setAdminNote(e.target.value)}
               className="w-full p-3 rounded border dark:bg-gray-700"
@@ -266,46 +299,30 @@ const AdminViewProperty = () => {
           {showRejectBox && (
             <div className="bg-red-100 dark:bg-red-900 p-4 rounded-lg">
               <textarea
-                placeholder="Enter rejection reason..."
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
                 className="w-full p-2 rounded border mb-3 text-black"
               />
-
               <div className="flex gap-3">
-                <button
-                  onClick={handleReject}
-                  className="bg-red-600 text-white px-4 py-2 rounded"
-                >
+                <button onClick={handleReject} className="bg-red-600 text-white px-4 py-2 rounded">
                   Confirm Reject
                 </button>
-
-                <button
-                  onClick={() => setShowRejectBox(false)}
-                  className="bg-gray-500 text-white px-4 py-2 rounded"
-                >
+                <button onClick={() => setShowRejectBox(false)} className="bg-gray-500 text-white px-4 py-2 rounded">
                   Cancel
                 </button>
               </div>
             </div>
           )}
 
-          {/* ACTION BUTTONS */}
-          <div className="flex gap-4 mt-4 flex-wrap">
+          {/* ACTIONS */}
+          <div className="flex gap-4 flex-wrap">
 
             {property.status === "PENDING" && (
               <>
-                <button
-                  onClick={handleApprove}
-                  className="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-lg"
-                >
+                <button onClick={handleApprove} className="bg-green-600 text-white px-5 py-2 rounded-lg">
                   Approve
                 </button>
-
-                <button
-                  onClick={() => setShowRejectBox(true)}
-                  className="bg-red-600 hover:bg-red-700 text-white px-5 py-2 rounded-lg"
-                >
+                <button onClick={() => setShowRejectBox(true)} className="bg-red-600 text-white px-5 py-2 rounded-lg">
                   Reject
                 </button>
               </>
@@ -314,29 +331,21 @@ const AdminViewProperty = () => {
             {property.status === "APPROVED" && (
               <>
                 {!property.featured ? (
-                  <button
-                    onClick={handleFeature}
-                    className="bg-yellow-500 hover:bg-yellow-600 text-white px-5 py-2 rounded-lg"
-                  >
+                  <button onClick={handleFeature} className="bg-yellow-500 text-white px-5 py-2 rounded-lg">
                     Mark as Featured
                   </button>
                 ) : (
-                  <button
-                    onClick={handleUnfeature}
-                    className="bg-purple-600 hover:bg-purple-700 text-white px-5 py-2 rounded-lg"
-                  >
+                  <button onClick={handleUnfeature} className="bg-purple-600 text-white px-5 py-2 rounded-lg">
                     Remove Featured
                   </button>
                 )}
               </>
             )}
 
-            <button
-              onClick={handleDelete}
-              className="bg-gray-700 hover:bg-black text-white px-5 py-2 rounded-lg"
-            >
+            <button onClick={handleDelete} className="bg-gray-800 text-white px-5 py-2 rounded-lg">
               Delete
             </button>
+
           </div>
 
         </div>

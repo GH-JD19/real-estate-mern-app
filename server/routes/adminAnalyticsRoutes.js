@@ -17,7 +17,7 @@ router.get(
   getDashboardStats
 )
 
-// Monthly Charts
+// Monthly Charts (FINAL)
 router.get(
   "/charts",
   protect,

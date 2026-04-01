@@ -1,10 +1,13 @@
 import { Routes, Route, useLocation } from "react-router-dom"
 import { useEffect } from "react"
+import { Toaster } from "react-hot-toast";
 
 import MainLayout from "./layouts/MainLayout"
 import AdminLayout from "./layouts/AdminLayout"
 import UserLayout from "./layouts/UserLayout"
 import AgentLayout from "./layouts/AgentLayout"
+
+import { NotificationProvider } from "./context/NotificationContext"
 
 import ProtectedRoute from "./routes/ProtectedRoute"
 import PublicRoute from "./routes/PublicRoute"
@@ -62,8 +65,12 @@ function ScrollToTop() {
 function App() {
   return (
     <>
+    <NotificationProvider>   {/* ✅ ADD THIS */}
+
     <GlobalLoader />   {/* 🔥 ADD THIS */}
       <ScrollToTop />
+
+      <Toaster position="top-right" />
 
       <Routes>
 
@@ -393,6 +400,7 @@ function App() {
         <Route path="*" element={<NotFound />} />
 
       </Routes>
+      </NotificationProvider>   {/* ✅ ADD THIS */}
     </>
   )
 }

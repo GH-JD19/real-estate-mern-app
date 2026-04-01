@@ -2,8 +2,8 @@ import { Navigate } from "react-router-dom"
 
 function RoleProtectedRoute({ children, allowedRoles }) {
   const token =
-    localStorage.getItem("token") ||
-    sessionStorage.getItem("token")
+    localStorage.getItem("accessToken") ||
+    sessionStorage.getItem("accessToken")
 
   const user = JSON.parse(localStorage.getItem("user"))
 

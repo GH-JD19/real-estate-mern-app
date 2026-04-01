@@ -47,6 +47,19 @@ exports.createBooking = async (req, res) => {
       booking
     })
 
+    global.io.to("admin-room").emit("dashboard:update", {
+      type: "BOOKING_CREATED",
+      message: "New booking request",
+      time: new Date()
+    })
+
+    // ✅ NOTIFY AGENT
+    global.io.to("agent-room").emit("agent:update", {
+      type: "BOOKING_CREATED",
+      message: "New booking received",
+      time: new Date()
+    })
+
   } catch (error) {
 
     res.status(500).json({
@@ -153,6 +166,12 @@ exports.updateBookingStatus = async (req, res) => {
       success: true,
       message: "Booking updated",
       booking
+    })
+
+    global.io.to("admin-room").emit("dashboard:update", {
+      type: "BOOKING_UPDATED",
+      message: `Booking ${status}`,
+      time: new Date()
     })
 
   } catch (error) {

@@ -5,7 +5,6 @@ const Booking = require("../models/Booking")
 // ================= USER REQUEST AGENT =================
 exports.requestAgent = async (req, res) => {
   try {
-
     const user = await User.findById(req.user._id)
 
     if (!user) {
@@ -19,10 +18,42 @@ exports.requestAgent = async (req, res) => {
     user.isAgentRequested = true
     await user.save()
 
-    res.json({
-      success:true,
-      message: "Agent request submitted"
+    // 🔥 REAL-TIME
+    global.io.to("admin-room").emit("dashboard:update", {
+      type: "AGENT_REQUEST",
+      message: `${user.name} requested agent access`,
+      time: new Date()
     })
+
+    res.json({ success:true, message: "Agent request submitted" })
+
+  } catch (err) {
+    res.status(500).json({ success:false, message: err.message })
+  }
+}
+
+
+exports.approveAgent = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id)
+
+    if (!user) {
+      return res.status(404).json({ success:false, message: "User not found" })
+    }
+
+    user.role = "agent"
+    user.agentApproved = true
+    user.isAgentRequested = false
+    await user.save()
+
+    // 🔥 REAL-TIME
+    global.io.to("admin-room").emit("dashboard:update", {
+      type: "AGENT_APPROVED",
+      message: `${user.name} approved as agent`,
+      time: new Date()
+    })
+
+    res.json({ success:true, message: "Agent approved successfully" })
 
   } catch (err) {
     res.status(500).json({ success:false, message: err.message })

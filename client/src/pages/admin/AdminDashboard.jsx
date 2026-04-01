@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import api from "../../services/api";
 import { useNavigate } from "react-router-dom";
+import socket from "../../services/socket";
 
 import {
   ResponsiveContainer,
@@ -52,37 +53,47 @@ const AdminDashboard = () => {
 
   useEffect(() => {
 
-    const loadDashboard = async () => {
+  const loadDashboard = async () => {
+    await Promise.all([
+      fetchStats(),
+      fetchCharts()
+    ])
+  }
 
-      await Promise.all([
-        fetchStats(),
-        fetchCharts()
-      ])
+  loadDashboard()
 
-    }
+  // ✅ CONNECT SOCKET
+  socket.connect()
+  socket.emit("joinAdmin")
 
-    loadDashboard()
+  // ✅ LISTEN EVENTS
+  socket.on("dashboard:update", (data) => {
 
-  }, [])
+    console.log("Realtime:", data)
+
+    // 🔥 SMART UPDATE
+    fetchStats()
+    fetchCharts()
+
+  })
+
+  return () => {
+    socket.off("dashboard:update")
+  }
+
+}, [])
 
   const fetchStats = async () => {
     try {
-
       const res = await api.get("/admin-analytics/dashboard");
-
       setStats(res.data.stats || {});
-
     } catch (err) {
-
       console.log("Stats fetch error:", err.response?.data);
-
     }
   };
 
   const fetchCharts = async () => {
-
     try {
-
       const res = await api.get("/admin-analytics/charts");
 
       const safeData = (res.data.chartData || []).map((item, index) => ({
@@ -98,9 +109,7 @@ const AdminDashboard = () => {
       setChartData(safeData);
 
     } catch (err) {
-
       console.log("Chart fetch error:", err.response?.data);
-
     }
   };
 
@@ -110,21 +119,22 @@ const AdminDashboard = () => {
 
   return (
 
-    <div className="bg-gray-100 dark:bg-gray-900 min-h-screen p-6 text-gray-900 dark:text-white">
+    <div className="min-h-screen bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-900 dark:to-gray-950 p-6">
 
       {/* HEADER */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold">
-          Admin Dashboard
-        </h1>
-
-        <p className="text-gray-500">
-          Overview of platform analytics and activity
-        </p>
+      <div className="mb-10 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">
+            Admin Dashboard
+          </h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">
+            Overview of platform analytics and activity
+          </p>
+        </div>
       </div>
 
       {/* ===== STATS ===== */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6 mb-12">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-6 mb-12">
 
         <StatCard
           icon={<Users size={26}/>}
@@ -177,9 +187,14 @@ const AdminDashboard = () => {
       </div>
 
       {/* ===== CHARTS ===== */}
-      <h2 className="text-xl font-semibold mb-6">
-        Monthly Analytics
-      </h2>
+      <div className="mb-6">
+        <h2 className="text-xl font-semibold tracking-tight">
+          Monthly Analytics
+        </h2>
+        <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
+          Yearly growth overview of platform data
+        </p>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
 
@@ -193,7 +208,6 @@ const AdminDashboard = () => {
       </div>
 
     </div>
-
   );
 
 };
@@ -207,19 +221,19 @@ const StatCard = ({icon,title,value,color,onClick}) => (
 
   <div
     onClick={onClick}
-    className="bg-white dark:bg-gray-800 rounded-xl shadow hover:shadow-lg transition cursor-pointer p-5 flex items-center gap-4"
+    className="group bg-white dark:bg-gray-800 rounded-2xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer p-5 flex items-center gap-4"
   >
 
-    <div className={`${color} text-white p-3 rounded-lg`}>
+    <div className={`${color} text-white p-3 rounded-xl shadow-md group-hover:scale-110 transition`}>
       {icon}
     </div>
 
     <div>
-      <p className="text-gray-500 text-sm">
+      <p className="text-gray-500 dark:text-gray-400 text-sm">
         {title}
       </p>
 
-      <h3 className="text-xl font-bold">
+      <h3 className="text-xl font-bold mt-1">
         {value}
       </h3>
     </div>
@@ -235,33 +249,42 @@ const StatCard = ({icon,title,value,color,onClick}) => (
 
 const Chart = ({title,dataKey,data}) => (
 
-  <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-4">
+  <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm hover:shadow-lg transition p-5">
 
-    <h3 className="font-semibold mb-4">
-      {title}
-    </h3>
+    <div className="flex items-center justify-between mb-4">
+      <h3 className="font-semibold text-sm text-gray-700 dark:text-gray-300">
+        {title}
+      </h3>
+    </div>
 
     <ResponsiveContainer width="100%" height={260}>
 
       <BarChart data={data}>
 
-        <CartesianGrid strokeDasharray="3 3"/>
+        <CartesianGrid strokeDasharray="3 3" />
 
         <XAxis
           dataKey="name"
           angle={-30}
           textAnchor="end"
           interval={0}
+          tick={{ fontSize: 12 }}
         />
 
-        <YAxis/>
+        <YAxis tick={{ fontSize: 12 }} />
 
-        <Tooltip/>
+        <Tooltip
+          contentStyle={{
+            borderRadius: "10px",
+            border: "none",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.1)"
+          }}
+        />
 
         <Bar
           dataKey={dataKey}
           fill={chartColors[dataKey]}
-          radius={[6,6,0,0]}
+          radius={[8,8,0,0]}
         />
 
       </BarChart>

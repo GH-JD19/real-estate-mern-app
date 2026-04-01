@@ -1,41 +1,111 @@
 import { NavLink } from "react-router-dom"
 import { FaFacebookF, FaInstagram, FaTwitter, FaLinkedinIn } from "react-icons/fa"
 import { useAuth } from "../context/AuthContext"
+import { useState } from "react"
+import toast from "react-hot-toast"
 
 function Footer() {
 
   const { user } = useAuth()
 
+  const [email, setEmail] = useState("")
+  const [loading, setLoading] = useState(false)
+
   const linkClass =
-    "hover:text-blue-600 transition-colors duration-200"
+    "block text-sm hover:text-blue-600 hover:translate-x-1 hover:font-medium transition-all duration-200";
+
+  // ✅ Subscribe Handler (Backend Connected)
+  const handleSubscribe = async () => {
+    if (!email) {
+      return toast.error("Please enter email")
+    }
+
+    try {
+      setLoading(true)
+
+      const res = await fetch("http://localhost:5000/api/subscribe", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.message)
+      }
+
+      toast.success("Subscribed successfully 🎉")
+      setEmail("")
+
+    } catch (error) {
+      toast.error(error.message || "Something went wrong")
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
-    <footer className="bg-white dark:bg-gray-900 border-t dark:border-gray-700">
+    <footer className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
 
-      <div className="max-w-7xl mx-auto px-6 py-14 grid gap-10 md:grid-cols-3">
+      <div className="max-w-7xl mx-auto px-6 pt-12">
+        <div className="bg-blue-600 text-white rounded-2xl p-8 flex flex-col md:flex-row justify-between items-center gap-4">
+          
+          <div>
+            <h3 className="text-lg font-semibold">
+              Subscribe to our newsletter
+            </h3>
+            <p className="text-sm text-blue-100">
+              Get latest property updates and offers
+            </p>
+          </div>
+
+          <div className="flex w-full md:w-auto shadow-md rounded-lg overflow-hidden">
+            <input
+              type="email"
+              placeholder="Enter your email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="px-4 py-2 w-full md:w-64 text-black outline-none focus:ring-2 focus:ring-blue-400"
+            />
+            <button
+              onClick={handleSubscribe}
+              disabled={loading}
+              className="bg-black px-5 text-white text-sm hover:bg-gray-900 transition focus:ring-2 focus:ring-black active:scale-95"
+            >
+              {loading ? "..." : "Subscribe"}
+            </button>
+          </div>
+
+        </div>
+      </div>
+
+      <div className="border-t border-gray-100 dark:border-gray-800 mt-12"></div>
+
+      <div className="max-w-7xl mx-auto px-6 py-16 grid gap-12 md:grid-cols-3">
 
         {/* BRAND */}
         <div>
-
-          <h2 className="text-2xl font-bold text-blue-600 mb-4">
+          <h2 className="text-3xl font-extrabold text-blue-600 mb-4 tracking-tight">
             RealEstate
           </h2>
 
-          <p className="text-gray-600 dark:text-gray-400 leading-relaxed max-w-sm">
+          <p className="text-gray-600 dark:text-gray-400 leading-relaxed max-w-sm text-sm">
             Discover your dream property easily and securely.
             Buy, rent and explore verified listings with confidence.
           </p>
-
         </div>
 
         {/* QUICK LINKS */}
         <div>
 
-          <h3 className="font-semibold text-gray-800 dark:text-white mb-4">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wider mb-5">
             Quick Links
           </h3>
 
-          <ul className="space-y-2 text-gray-600 dark:text-gray-400">
+          <ul className="space-y-3 text-gray-600 dark:text-gray-400">
 
             {!user && (
               <>
@@ -81,45 +151,57 @@ function Footer() {
         {/* CONTACT */}
         <div>
 
-          <h3 className="font-semibold text-gray-800 dark:text-white mb-4">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wider mb-5">
             Contact
           </h3>
 
-          <p className="text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
             support@realestate.com
           </p>
 
-          <p className="text-gray-600 dark:text-gray-400 mt-2">
-            +91 9876543210
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+            +91 99999 12345
           </p>
 
           {/* SOCIAL ICONS */}
-          <div className="flex gap-3 mt-5 text-gray-600 dark:text-gray-400">
+          <div className="flex gap-4 mt-6">
 
             <a
-              href="#"
-              className="p-2 rounded-full border border-gray-200 dark:border-gray-700 hover:bg-blue-600 hover:text-white hover:border-blue-600 transition duration-200"
+              href="https://www.facebook.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Facebook"
+              className="p-2.5 cursor-pointer rounded-full border border-gray-200 dark:border-gray-700 hover:bg-blue-600 hover:text-white hover:scale-110 hover:border-blue-600 transition-all duration-300"
             >
               <FaFacebookF size={14} />
             </a>
 
             <a
-              href="#"
-              className="p-2 rounded-full border border-gray-200 dark:border-gray-700 hover:bg-blue-600 hover:text-white hover:border-blue-600 transition duration-200"
+              href="https://www.instagram.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Instagram"
+              className="p-2.5 cursor-pointer rounded-full border border-gray-200 dark:border-gray-700 hover:bg-blue-600 hover:text-white hover:scale-110 hover:border-blue-600 transition-all duration-300"
             >
               <FaInstagram size={14} />
             </a>
 
             <a
-              href="#"
-              className="p-2 rounded-full border border-gray-200 dark:border-gray-700 hover:bg-blue-600 hover:text-white hover:border-blue-600 transition duration-200"
+              href="https://twitter.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Twitter"
+              className="p-2.5 cursor-pointer rounded-full border border-gray-200 dark:border-gray-700 hover:bg-blue-600 hover:text-white hover:scale-110 hover:border-blue-600 transition-all duration-300"
             >
               <FaTwitter size={14} />
             </a>
 
             <a
-              href="#"
-              className="p-2 rounded-full border border-gray-200 dark:border-gray-700 hover:bg-blue-600 hover:text-white hover:border-blue-600 transition duration-200"
+              href="https://www.linkedin.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="LinkedIn"
+              className="p-2.5 cursor-pointer rounded-full border border-gray-200 dark:border-gray-700 hover:bg-blue-600 hover:text-white hover:scale-110 hover:border-blue-600 transition-all duration-300"
             >
               <FaLinkedinIn size={14} />
             </a>
@@ -131,10 +213,8 @@ function Footer() {
       </div>
 
       {/* BOTTOM BAR */}
-      <div className="border-t dark:border-gray-700 py-4 text-center text-gray-500 text-sm">
-
+      <div className="border-t border-gray-200 dark:border-gray-700 py-5 text-center text-gray-500 text-xs tracking-wide">
         © {new Date().getFullYear()} RealEstate. All rights reserved.
-
       </div>
 
     </footer>

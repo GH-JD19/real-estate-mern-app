@@ -1,12 +1,8 @@
 import { Navigate } from "react-router-dom"
+import { useAuth } from "../context/AuthContext"
 
 function ProtectedRoute({ children, allowedRoles }) {
-
-  const token =
-    localStorage.getItem("token") ||
-    sessionStorage.getItem("token")
-
-  const user = JSON.parse(localStorage.getItem("user"))
+  const { user, token } = useAuth()
 
   // Not logged in
   if (!token) {

@@ -7,7 +7,10 @@ const {
   getMe,
   changePassword,
   forgotPassword,
-  resetPassword
+  resetPassword,
+  refreshToken,
+  logoutUser,
+  logoutAllDevices
 } = require("../controllers/authController")
 
 const protect = require("../middleware/authMiddleware")
@@ -15,13 +18,14 @@ const protect = require("../middleware/authMiddleware")
 router.post("/register", registerUser)
 router.post("/login", loginUser)
 
-router.get("/me", protect, getMe)
+router.post("/refresh", refreshToken)
+router.post("/logout", logoutUser)
+router.post("/logout-all", protect, logoutAllDevices)
 
-// CHANGE PASSWORD (All authenticated users)
+router.get("/me", protect, getMe)
 router.put("/change-password", protect, changePassword)
 
 router.post("/forgot-password", forgotPassword)
-
 router.put("/reset-password/:token", resetPassword)
 
 module.exports = router

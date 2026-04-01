@@ -18,6 +18,16 @@ function ChangePassword() {
   const [showNew, setShowNew] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
 
+  // ✅ PASSWORD STRENGTH
+  const getPasswordStrength = (password) => {
+    if (!password) return ""
+    if (password.length < 6) return "Weak"
+    if (password.length < 10) return "Medium"
+    return "Strong"
+  }
+
+  const strength = getPasswordStrength(form.newPassword)
+
   const handleChange = (e) => {
 
     const { name, value } = e.target
@@ -81,7 +91,7 @@ function ChangePassword() {
 
   return (
     
-    <div className="bg-gray-100 min-h-[80vh] flex items-center justify-center px-4 dark:bg-gray-900 text-gray-900 dark:text-white">
+    <div className="bg-gray-100 dark:bg-gray-900 min-h-[80vh] flex items-center justify-center px-4 py-10 text-gray-900 dark:text-white">
       
       {/* LOADING OVERLAY */}
       {loading && (
@@ -95,18 +105,18 @@ function ChangePassword() {
         </div>
       )}
 
-      <div className="grid md:grid-cols-2 max-w-4xl w-full bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden">
+      <div className="grid md:grid-cols-2 max-w-5xl w-full bg-white dark:bg-gray-800 rounded-2xl shadow-xl overflow-hidden">
 
         {/* LEFT PANEL */}
-        <div className="hidden md:flex bg-gradient-to-br from-blue-600 to-blue-800 text-white p-6 md:p-10 flex-col justify-center">
+        <div className="hidden md:flex bg-gradient-to-br from-blue-600 to-blue-800 text-white p-10 flex-col justify-center">
 
           <h2 className="text-3xl font-bold mb-4 flex items-center gap-2">
             Change Password <FaLock />
           </h2>
 
-          <p className="text-blue-100">
-            Update your password to keep your account secure.
-            Always use a strong password you don't use elsewhere.
+          <p className="text-blue-100 leading-relaxed">
+            Keep your account secure by updating your password regularly.
+            Use a strong combination of letters, numbers, and symbols.
           </p>
 
         </div>
@@ -119,15 +129,15 @@ function ChangePassword() {
           </h3>
 
           {message && (
-            <p className="mb-4 text-green-600">
+            <div className="mb-4 p-3 bg-green-100 text-green-700 rounded-lg text-sm">
               {message}
-            </p>
+            </div>
           )}
 
           {error && (
-            <p className="mb-4 text-red-500">
+            <div className="mb-4 p-3 bg-red-100 text-red-600 rounded-lg text-sm">
               {error}
-            </p>
+            </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -188,6 +198,20 @@ function ChangePassword() {
                 </button>
 
               </div>
+
+              {/* PASSWORD STRENGTH */}
+              {form.newPassword && (
+                <p className={`text-sm mt-1 ${
+                  strength === "Weak"
+                    ? "text-red-500"
+                    : strength === "Medium"
+                    ? "text-yellow-500"
+                    : "text-green-500"
+                }`}>
+                  Strength: {strength}
+                </p>
+              )}
+
             </div>
 
             {/* CONFIRM PASSWORD */}
@@ -218,14 +242,9 @@ function ChangePassword() {
 
               </div>
 
-              {error && (
-                <p className="text-red-500 text-sm mt-1">
-                  {error}
-                </p>
-              )}
-
             </div>
 
+            {/* BUTTON */}
             <button
               type="submit"
               disabled={loading}

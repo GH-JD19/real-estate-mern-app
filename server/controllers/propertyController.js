@@ -1,4 +1,5 @@
 const Property = require("../models/Property")
+const Notification = require("../models/Notification")
 
 // ============================
 // CREATE PROPERTY
@@ -64,6 +65,18 @@ exports.createProperty = async (req, res) => {
       success: true,
       message: "Property created successfully",
       property
+    })
+
+    await Notification.create({
+      role: "admin",
+      type: "PROPERTY_CREATED",
+      message: "New property submitted"
+    })
+
+    global.io.to("admin-room").emit("dashboard:update", {
+      type: "PROPERTY_CREATED",
+      message: "New property submitted",
+      time: new Date()
     })
 
   } catch (error) {
@@ -417,6 +430,12 @@ exports.adminDeleteProperty = async (req, res) => {
       message: "Property deleted by admin"
     })
 
+    global.io.to("admin-room").emit("dashboard:update", {
+      type: "PROPERTY_DELETED",
+      message: "Property deleted by admin",
+      time: new Date()
+    })
+
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -482,16 +501,39 @@ exports.approveProperty = async (req, res) => {
     const property = await Property.findById(req.params.id)
 
     if (!property) {
-      return res.status(404).json({ success:false })
+      return res.status(404).json({ success: false })
     }
 
     property.status = "APPROVED"
     await property.save()
 
-    res.json({ success:true })
+    // ✅ SAVE FIRST
+    await Notification.create({
+      userId: property.createdBy.toString(),
+      role: "user",
+      type: "PROPERTY_APPROVED",
+      message: "Your property has been approved"
+    })
+
+    // ✅ EMIT TO ADMIN
+    global.io.to("admin-room").emit("dashboard:update", {
+      type: "PROPERTY_APPROVED",
+      message: "Property approved",
+      time: new Date()
+    })
+
+    // ✅ EMIT TO USER (FIXED)
+    global.io.to(`user-${property.createdBy}`).emit("user:update", {
+      type: "PROPERTY_APPROVED",
+      message: "Your property has been approved",
+      time: new Date()
+    })
+
+    // ✅ SEND RESPONSE LAST
+    res.json({ success: true })
 
   } catch (error) {
-    res.status(500).json({ success:false })
+    res.status(500).json({ success: false })
   }
 }
 
@@ -511,6 +553,18 @@ exports.rejectProperty = async (req, res) => {
     await property.save()
 
     res.json({ success:true })
+
+    global.io.to("admin-room").emit("dashboard:update", {
+      type: "PROPERTY_REJECTED",
+      message: "Property rejected",
+      time: new Date()
+    })
+
+    // ✅ ADD THIS
+    global.io.to(`user-${property.createdBy}`).emit("user:update", {
+      message: "Your property has been rejected",
+      time: new Date()
+    })
 
   } catch (error) {
     res.status(500).json({ success:false })

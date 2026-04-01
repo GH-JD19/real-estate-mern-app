@@ -11,146 +11,96 @@ function PropertyListing() {
   const [search, setSearch] = useState("")
 
   useEffect(() => {
-
     const fetchProperties = async () => {
-
       try {
-
         const { data } = await api.get("/properties")
-
         setProperties(data?.properties || [])
-
       } catch (err) {
-
         setError("Failed to load properties")
-
       } finally {
-
         setLoading(false)
-
       }
-
     }
-
     fetchProperties()
-
   }, [])
-
 
   const filteredProperties = properties.filter((p) =>
     p.title?.toLowerCase().includes(search.toLowerCase())
   )
 
-
   return (
-
-    <div className="bg-gray-50 dark:bg-gray-900 min-h-screen py-20">
+    <div className="bg-gray-50 dark:bg-gray-900 min-h-screen py-24">
 
       <div className="max-w-7xl mx-auto px-6">
 
         {/* HEADER */}
-        <div className="text-center mb-10">
-
-          <h1 className="text-4xl font-bold text-gray-800 dark:text-white mb-3">
-            Available Properties
+        <div className="text-center mb-14">
+          <h1 className="text-5xl font-bold text-gray-800 dark:text-white mb-4">
+            Explore Properties
           </h1>
-
-          <p className="text-gray-500 dark:text-gray-400">
-            Explore verified homes & investment opportunities
+          <p className="text-gray-500 text-lg">
+            Find your perfect home or investment opportunity
           </p>
-
         </div>
 
-
-        {/* SEARCH BAR */}
-        <div className="max-w-xl mx-auto mb-14">
-
-          <div className="flex items-center bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3 shadow-sm">
-
-            <Search size={18} className="text-gray-400 mr-3" />
-
+        {/* SEARCH */}
+        <div className="max-w-2xl mx-auto mb-16">
+          <div className="flex items-center bg-white dark:bg-gray-800 border rounded-2xl px-5 py-4 shadow-md">
+            <Search size={20} className="text-gray-400 mr-3" />
             <input
               type="text"
-              placeholder="Search properties..."
+              placeholder="Search by property name..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-transparent outline-none text-gray-700 dark:text-gray-300"
+              className="w-full bg-transparent outline-none text-gray-700 dark:text-gray-300 text-lg"
             />
-
           </div>
-
         </div>
-
 
         {/* LOADING */}
         {loading && (
-
-          <div className="flex justify-center py-24">
-
-            <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-
+          <div className="flex justify-center py-32">
+            <div className="w-14 h-14 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
           </div>
-
         )}
-
 
         {/* ERROR */}
         {!loading && error && (
-
-          <div className="text-center py-20 text-red-500 font-medium">
-
+          <div className="text-center py-24 text-red-500 text-lg">
             {error}
-
           </div>
-
         )}
-
 
         {/* EMPTY */}
         {!loading && !error && filteredProperties.length === 0 && (
-
-          <div className="text-center py-24">
-
-            <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-300">
+          <div className="text-center py-28">
+            <h3 className="text-2xl font-semibold text-gray-700 dark:text-gray-300">
               No Properties Found
             </h3>
-
-            <p className="text-gray-500 dark:text-gray-400 mt-2">
-              Try searching with a different keyword
+            <p className="text-gray-500 mt-3">
+              Try a different keyword
             </p>
-
           </div>
-
         )}
 
-
-        {/* PROPERTY GRID */}
+        {/* GRID */}
         {!loading && !error && filteredProperties.length > 0 && (
-
-          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-
+          <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {filteredProperties.map((property) => (
-
               <PropertyCard
                 key={property._id}
                 property={property}
               />
-
             ))}
-
           </div>
-
         )}
 
       </div>
 
-      {/* FOOTER SPACING */}
-      <div className="pb-20"></div>
+      <div className="pb-24"></div>
 
     </div>
-
   )
-
 }
 
 export default PropertyListing

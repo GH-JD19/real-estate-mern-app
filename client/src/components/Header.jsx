@@ -1,13 +1,15 @@
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import { NavLink, useNavigate } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
 import { useTheme } from "../context/ThemeContext"
+import { useNotification } from "../context/NotificationContext"
 
 import {
   FaHome, FaInfoCircle, FaFileContract, FaShieldAlt,
   FaSignInAlt, FaUserPlus, FaBuilding, FaUsers,
   FaChartLine, FaHeart, FaCalendarCheck, FaUser,
-  FaBars, FaTimes, FaMoon, FaSun, FaKey, FaCog
+  FaBars, FaTimes, FaMoon, FaSun, FaKey, FaCog, FaBell,
+  FaCheckCircle, FaTimesCircle
 } from "react-icons/fa"
 
 function Header() {
@@ -16,8 +18,77 @@ function Header() {
   const { darkMode, toggleTheme } = useTheme()
   const navigate = useNavigate()
 
+  const {
+    notifications,
+    unread,
+    setUnread,
+    setNotifications,
+    markAsRead,
+    markAllAsRead
+  } = useNotification()
+
+  const [showNotifications, setShowNotifications] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+
+  const dropdownRef = useRef()
+  const notificationRef = useRef()
+
+  // ================= ICON HELPER =================
+  const getNotificationIcon = (type) => {
+    switch (type) {
+      case "PROPERTY_CREATED":
+        return <FaHome className="text-blue-500" />
+      case "PROPERTY_APPROVED":
+        return <FaCheckCircle className="text-green-500" />
+      case "PROPERTY_REJECTED":
+        return <FaTimesCircle className="text-red-500" />
+      case "BOOKING_CREATED":
+        return <FaCalendarCheck className="text-purple-500" />
+      default:
+        return <FaBell />
+    }
+  }
+
+  // ================= CLICK HANDLER =================
+  const handleNotificationClick = (n) => {
+
+    if (n.type === "BOOKING_CREATED") {
+      navigate("/agent/bookings")
+    }
+
+    if (n.type === "PROPERTY_CREATED") {
+      navigate("/admin/pending-properties")
+    }
+
+    if (n.type === "PROPERTY_APPROVED") {
+      navigate("/user-dashboard")
+    }
+
+    if (n.type === "PROPERTY_REJECTED") {
+      navigate("/user-dashboard")
+    }
+
+    setShowNotifications(false)
+  }
+
+  // ================= CLICK OUTSIDE =================
+  useEffect(() => {
+    const handler = (e) => {
+
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setSettingsOpen(false)
+      }
+
+      if (notificationRef.current && !notificationRef.current.contains(e.target)) {
+        setShowNotifications(false)
+      }
+
+    }
+
+    document.addEventListener("mousedown", handler)
+    return () => document.removeEventListener("mousedown", handler)
+  }, [])
 
   const handleLogout = () => {
     logout()
@@ -32,34 +103,105 @@ function Header() {
   }
 
   const linkClass =
-    "flex items-center gap-2 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition font-medium"
+    "flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-all duration-200"
 
   const activeClass =
-    "flex items-center gap-2 text-blue-600 dark:text-blue-400 font-semibold"
+    "flex items-center gap-2 text-sm font-semibold text-blue-600 dark:text-blue-400"
 
   return (
-    <header className="sticky top-0 z-50 backdrop-blur-md bg-white/80 dark:bg-gray-900/80 border-b border-gray-200 dark:border-gray-700">
+    <header className="sticky top-0 z-50 backdrop-blur-md bg-white/70 dark:bg-gray-900/70 shadow-sm border-b border-gray-200 dark:border-gray-700">
 
-      <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+      <div className="max-w-7xl mx-auto px-6 py-3 flex justify-between items-center">
 
         {/* LOGO */}
         <NavLink
           to={user ? getDashboardLink() : "/"}
-          className="text-2xl font-bold text-blue-600"
+          className="text-2xl font-bold tracking-tight text-blue-600 hover:opacity-90 transition"
         >
           RealEstate
         </NavLink>
 
         {/* DESKTOP MENU */}
-        <nav className="hidden md:flex items-center gap-6">
+        <nav className="hidden md:flex items-center gap-8">
 
           {/* THEME */}
           <button
             onClick={toggleTheme}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition"
+            className="p-2 rounded-full bg-gray-100 dark:bg-gray-800 hover:scale-105 transition"
           >
             {darkMode ? <FaSun /> : <FaMoon />}
           </button>
+
+          {/* 🔔 NOTIFICATION */}
+          {user && (
+            <div className="relative" ref={notificationRef}>
+              <button
+                onClick={() => {
+                  setShowNotifications(!showNotifications)
+                  setUnread(0)
+                }}
+                className="relative p-2 rounded-full bg-gray-100 dark:bg-gray-800 hover:scale-105 transition"
+              >
+                <FaBell />
+
+                {unread > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">
+                    {unread}
+                  </span>
+                )}
+              </button>
+
+              {showNotifications && (
+                <div className="absolute right-0 mt-3 w-80 max-h-96 overflow-y-auto bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 z-50">
+
+                  <div className="p-3 border-b dark:border-gray-700 font-semibold flex justify-between">
+                    Notifications
+                    <button
+                      onClick={markAllAsRead}
+                      className="text-xs text-red-500 hover:underline"
+                    >
+                      Mark all as read
+                    </button>
+                  </div>
+
+                  {notifications.length === 0 ? (
+                    <p className="p-4 text-sm text-gray-500">
+                      No notifications
+                    </p>
+                  ) : (
+                    notifications.map((n, i) => (
+                      <div
+                        key={i}
+                        onClick={() => {
+                          handleNotificationClick(n)
+                          if (n._id && !n.read) markAsRead(n._id)
+                        }}
+                        className={`flex gap-3 px-4 py-3 border-b cursor-pointer
+                        ${!n.read ? "bg-blue-50 dark:bg-gray-700" : ""}`}
+                      >
+
+                        <div className="mt-1">
+                          {getNotificationIcon(n.type)}
+                        </div>
+
+                        <div className="flex-1">
+                          <p className="text-sm font-medium">
+                            {n.message}
+                          </p>
+
+                          <p className="text-xs text-gray-400 mt-1">
+                            {new Date(n.time).toLocaleString()}
+                          </p>
+                        </div>
+
+                      </div>
+                    ))
+                  )}
+
+                </div>
+              )}
+            </div>
+          )}
 
           {!user && (
             <>
@@ -68,7 +210,7 @@ function Header() {
               <NavLink to="/terms" className={({isActive}) => isActive ? activeClass : linkClass}><FaFileContract /> Terms</NavLink>
               <NavLink to="/privacy" className={({isActive}) => isActive ? activeClass : linkClass}><FaShieldAlt /> Privacy</NavLink>
               <NavLink to="/login" className={({isActive}) => isActive ? activeClass : linkClass}><FaSignInAlt /> Login</NavLink>
-              <NavLink to="/register" className={({isActive}) => isActive ? activeClass : linkClass}><FaUserPlus /> Register</NavLink>
+              <NavLink to="/register" className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition shadow-sm flex items-center gap-2"><FaUserPlus /> Register</NavLink>
             </>
           )}
 
@@ -118,22 +260,21 @@ function Header() {
                 </>
               )}
 
-              <div className="relative">
-
+              <div className="relative" ref={dropdownRef}>
                 <button
                   onClick={() => setSettingsOpen(!settingsOpen)}
-                  className={`${linkClass} ${settingsOpen ? "text-blue-600 dark:text-blue-400 font-semibold" : ""}`}
+                  className={`${linkClass} px-2 py-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 ${settingsOpen ? "text-blue-600 dark:text-blue-400" : ""}`}
                 >
                   <FaCog /> Settings
                 </button>
 
                 {settingsOpen && (
-                  <div className="absolute right-0 mt-3 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg shadow-lg w-48 border border-gray-200 dark:border-gray-700">
+                  <div className="absolute right-0 mt-3 w-52 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
 
                     <NavLink
                       to={`/${user.role}/profile`}
                       onClick={() => setSettingsOpen(false)}
-                      className="flex items-center gap-2 px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      className="flex items-center gap-2 px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
                     >
                       <FaUser /> Profile
                     </NavLink>
@@ -141,19 +282,18 @@ function Header() {
                     <NavLink
                       to={`/${user.role}/change-password`}
                       onClick={() => setSettingsOpen(false)}
-                      className="flex items-center gap-2 px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      className="flex items-center gap-2 px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
                     >
                       <FaKey /> Change Password
                     </NavLink>
 
                   </div>
                 )}
-
               </div>
 
               <button
                 onClick={handleLogout}
-                className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+                className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 hover:scale-[1.02] transition shadow-sm"
               >
                 Logout
               </button>
@@ -174,11 +314,11 @@ function Header() {
 
       {/* MOBILE MENU */}
       <div
-        className={`fixed inset-0 h-screen w-screen overflow-y-auto bg-white dark:bg-black text-gray-700 dark:text-gray-300 dark:text-white shadow-xl transform transition-transform duration-300 z-50
+        className={`fixed inset-0 h-screen w-screen overflow-y-auto bg-white dark:bg-gray-900 transform transition-transform duration-300
         ${menuOpen ? "translate-x-0" : "-translate-x-full"} md:hidden`}
       >
 
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
 
           <h2 className="text-xl font-bold text-blue-600">
             RealEstate
@@ -190,44 +330,58 @@ function Header() {
 
         </div>
 
-        <div className="px-6 py-6 space-y-6">
+        <div className="p-6 space-y-5">
 
-          {/* MOBILE THEME TOGGLE - ALWAYS VISIBLE */}
           <button
-                onClick={toggleTheme}
-                className="flex items-center gap-2 text-white bg-gray-800 px-4 py-2 rounded-lg w-full"
-              >
-                {darkMode ? <FaSun /> : <FaMoon />} Toggle Theme
+            onClick={toggleTheme}
+            className="w-full flex items-center justify-center gap-2 bg-gray-200 dark:bg-gray-800 px-4 py-2 rounded-lg"
+          >
+            {darkMode ? <FaSun /> : <FaMoon />} Toggle Theme
           </button>
-          
+
+          {/* MOBILE NOTIFICATIONS */}
+          {user && (
+            <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg">
+              <p className="font-semibold mb-2">Notifications ({unread})</p>
+
+              {notifications.length === 0 ? (
+                <p className="text-sm text-gray-500">No notifications</p>
+              ) : (
+                notifications.slice(0,5).map((n,i)=>(
+                  <p key={i} className="text-sm mb-1">{n.message}</p>
+                ))
+              )}
+            </div>
+          )}
+
           {!user && (
             <>
-              <NavLink to="/" onClick={()=>setMenuOpen(false)} className={linkClass}><FaHome /> Home</NavLink>
-              <NavLink to="/about" onClick={()=>setMenuOpen(false)} className={linkClass}><FaInfoCircle /> About</NavLink>
-              <NavLink to="/terms" onClick={()=>setMenuOpen(false)} className={linkClass}><FaFileContract /> Terms</NavLink>
-              <NavLink to="/privacy" onClick={()=>setMenuOpen(false)} className={linkClass}><FaShieldAlt /> Privacy</NavLink>
-              <NavLink to="/login" onClick={()=>setMenuOpen(false)} className={linkClass}><FaSignInAlt /> Login</NavLink>
-              <NavLink to="/register" onClick={()=>setMenuOpen(false)} className={linkClass}><FaUserPlus /> Register</NavLink>
+              <NavLink to="/" onClick={()=>setMenuOpen(false)} className={`${linkClass} transition`}><FaHome /> Home</NavLink>
+              <NavLink to="/about" onClick={()=>setMenuOpen(false)} className={`${linkClass} transition`}><FaInfoCircle /> About</NavLink>
+              <NavLink to="/terms" onClick={()=>setMenuOpen(false)} className={`${linkClass} transition`}><FaFileContract /> Terms</NavLink>
+              <NavLink to="/privacy" onClick={()=>setMenuOpen(false)} className={`${linkClass} transition`}><FaShieldAlt /> Privacy</NavLink>
+              <NavLink to="/login" onClick={()=>setMenuOpen(false)} className={`${linkClass} transition`}><FaSignInAlt /> Login</NavLink>
+              <NavLink to="/register" onClick={()=>setMenuOpen(false)} className={`${linkClass} transition`}><FaUserPlus /> Register</NavLink>
             </>
           )}
 
           {user && (
             <>
-              <NavLink to={getDashboardLink()} onClick={()=>setMenuOpen(false)} className={linkClass}>
+              <NavLink to={getDashboardLink()} onClick={()=>setMenuOpen(false)} className={`${linkClass} transition`}>
                 <FaHome /> Dashboard
               </NavLink>
 
               {user.role === "admin" && (
                 <>
-                  <NavLink to="/admin/properties" onClick={()=>setMenuOpen(false)} className={linkClass}>
+                  <NavLink to="/admin/properties" onClick={()=>setMenuOpen(false)} className={`${linkClass} transition`}>
                     <FaBuilding /> Properties
                   </NavLink>
 
-                  <NavLink to="/admin/users" onClick={()=>setMenuOpen(false)} className={linkClass}>
+                  <NavLink to="/admin/users" onClick={()=>setMenuOpen(false)} className={`${linkClass} transition`}>
                     <FaUsers /> Users
                   </NavLink>
 
-                  <NavLink to="/admin/analytics" onClick={()=>setMenuOpen(false)} className={linkClass}>
+                  <NavLink to="/admin/analytics" onClick={()=>setMenuOpen(false)} className={`${linkClass} transition`}>
                     <FaChartLine /> Analytics
                   </NavLink>
                 </>
@@ -235,11 +389,11 @@ function Header() {
 
               {user.role === "agent" && (
                 <>
-                  <NavLink to="/agent/manage-properties" onClick={()=>setMenuOpen(false)} className={linkClass}>
+                  <NavLink to="/agent/manage-properties" onClick={()=>setMenuOpen(false)} className={`${linkClass} transition`}>
                     <FaBuilding /> Manage Property
                   </NavLink>
 
-                  <NavLink to="/agent/bookings" onClick={()=>setMenuOpen(false)} className={linkClass}>
+                  <NavLink to="/agent/bookings" onClick={()=>setMenuOpen(false)} className={`${linkClass} transition`}>
                     <FaCalendarCheck /> Bookings
                   </NavLink>
                 </>
@@ -247,21 +401,21 @@ function Header() {
 
               {user.role === "user" && (
                 <>
-                  <NavLink to="/user/saved" onClick={()=>setMenuOpen(false)} className={linkClass}>
+                  <NavLink to="/user/saved" onClick={()=>setMenuOpen(false)} className={`${linkClass} transition`}>
                     <FaHeart /> Wishlist
                   </NavLink>
 
-                  <NavLink to="/user/bookings" onClick={()=>setMenuOpen(false)} className={linkClass}>
+                  <NavLink to="/user/bookings" onClick={()=>setMenuOpen(false)} className={`${linkClass} transition`}>
                     <FaCalendarCheck /> My Visits
                   </NavLink>
                 </>
               )}
 
-              <NavLink to={`/${user.role}/profile`} onClick={()=>setMenuOpen(false)} className={linkClass}>
+              <NavLink to={`/${user.role}/profile`} onClick={()=>setMenuOpen(false)} className={`${linkClass} transition`}>
                 <FaUser /> Profile
               </NavLink>
 
-              <NavLink to={`/${user.role}/change-password`} onClick={()=>setMenuOpen(false)} className={linkClass}>
+              <NavLink to={`/${user.role}/change-password`} onClick={()=>setMenuOpen(false)} className={`${linkClass} transition`}>
                 <FaKey /> Change Password
               </NavLink>
 

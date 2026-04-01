@@ -205,7 +205,7 @@ const AddProperty = () => {
   }, [preview])
 
   return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 p-6">
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 px-3 sm:px-6 py-4">
 
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold">Add New Property</h2>
@@ -217,295 +217,363 @@ const AddProperty = () => {
         </button>
       </div>
 
-      <div className="max-w-6xl mx-auto bg-white dark:bg-gray-800 dark:bg-gray-800 rounded-xl shadow-lg p-8">
-        <form onSubmit={handleSubmit} className="space-y-8">
+      <div className="max-w-5xl mx-auto bg-white dark:bg-gray-800 rounded-2xl shadow-md p-4 sm:p-6 md:p-8">
+        <form onSubmit={handleSubmit} className="space-y-6">
 
           {/* BASIC INFO */}
-          <div>
-            <label className="block mb-2 font-medium">Property Title</label>
-            <input name="title" value={formData.title}
-              onChange={handleChange}
-              className="w-full p-3 border rounded-lg dark:bg-gray-900" required />
-          </div>
+          <div className="bg-gray-50 dark:bg-gray-900 p-4 sm:p-6 rounded-xl shadow-sm hover:shadow-md transition space-y-4">
+            <h3 className="text-lg font-semibold">Basic Information</h3>
 
-          <div>
-            <label className="block mb-2 font-medium">Description</label>
-            <textarea name="description" value={formData.description}
-              onChange={handleChange}
-              className="w-full p-3 border rounded-lg dark:bg-gray-900" required />
+            <div>
+              <label className="block mb-2 font-medium">Property Title</label>
+              <input
+                name="title"
+                value={formData.title}
+                onChange={handleChange}
+                className="w-full p-3 border rounded-lg dark:bg-gray-900 focus:ring-2 focus:ring-blue-500 outline-none"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block mb-2 font-medium">Description</label>
+              <textarea
+                name="description"
+                value={formData.description}
+                onChange={handleChange}
+                className="w-full p-3 border rounded-lg dark:bg-gray-900 focus:ring-2 focus:ring-blue-500 outline-none"
+                required
+              />
+            </div>
           </div>
 
           {/* TYPE + PURPOSE */}
-          <div className="grid md:grid-cols-3 gap-4">
+          <div className="bg-gray-50 dark:bg-gray-900 p-4 sm:p-6 rounded-xl shadow-sm hover:shadow-md transition space-y-4">
+            <h3 className="text-lg font-semibold">Property Details</h3>
 
-            <div>
-              <label className="block mb-2 font-medium">Property Type</label>
-              <select name="type"
-                value={formData.type}
-                onChange={handleChange}
-                className="p-3 border rounded-lg w-full dark:bg-gray-900" required>
-                <option value="">Select Type</option>
-                <option value="APARTMENT">Apartment</option>
-                <option value="HOUSE">House</option>
-                <option value="VILLA">Villa</option>
-                <option value="PLOT">Plot</option>
-                <option value="LAND">Land</option>
-                <option value="COMMERCIAL">Commercial</option>
-                <option value="SHOP">Shop</option>
-                <option value="OFFICE">Office</option>
-                <option value="WAREHOUSE">Warehouse</option>
-                <option value="PG">PG</option>
-                <option value="BUILDER FLOOR">Builder Floor</option>
-                <option value="PENTHOUSE">Penthouse</option>
-                <option value="STUDIO">Studio</option>
-              </select>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+
+              <div>
+                <label className="block mb-2 font-medium">Property Type</label>
+                <select
+                  name="type"
+                  value={formData.type}
+                  onChange={handleChange}
+                  className="w-full p-3 border rounded-lg dark:bg-gray-900"
+                  required
+                >
+                  <option value="">Select Type</option>
+                  <option value="APARTMENT">Apartment</option>
+                  <option value="HOUSE">House</option>
+                  <option value="VILLA">Villa</option>
+                  <option value="PLOT">Plot</option>
+                  <option value="LAND">Land</option>
+                  <option value="COMMERCIAL">Commercial</option>
+                  <option value="SHOP">Shop</option>
+                  <option value="OFFICE">Office</option>
+                  <option value="WAREHOUSE">Warehouse</option>
+                  <option value="PG">PG</option>
+                  <option value="BUILDER FLOOR">Builder Floor</option>
+                  <option value="PENTHOUSE">Penthouse</option>
+                  <option value="STUDIO">Studio</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block mb-2 font-medium">Purpose</label>
+                <select
+                  name="purpose"
+                  value={formData.purpose}
+                  onChange={handleChange}
+                  className="w-full p-3 border rounded-lg dark:bg-gray-900"
+                  required
+                >
+                  <option value="">Select Purpose</option>
+                  <option value="SELL">Sell</option>
+                  <option value="RENT">Rent</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block mb-2 font-medium">Price</label>
+                <input
+                  name="price"
+                  value={formData.price}
+                  onChange={handleChange}
+                  className="w-full p-3 border rounded-lg dark:bg-gray-900"
+                  required
+                />
+              </div>
+
             </div>
 
-            <div>
-              <label className="block mb-2 font-medium">Purpose</label>
-              <select name="purpose"
-                value={formData.purpose}
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                name="priceNegotiable"
+                checked={formData.priceNegotiable}
                 onChange={handleChange}
-                className="p-3 border rounded-lg w-full dark:bg-gray-900" required>
-                <option value="">Select Purpose</option>
-                <option value="SELL">Sell</option>
-                <option value="RENT">Rent</option>
-              </select>
+              />
+              <label>Price Negotiable</label>
+            </div>
+          </div>
+
+          {/* PROPERTY SPECIFICATIONS */}
+          <div className="bg-gray-50 dark:bg-gray-900 p-4 sm:p-6 rounded-xl shadow-sm space-y-6">
+
+            <h3 className="text-lg font-semibold">Property Specifications</h3>
+
+            {/* AREA */}
+            <div>
+              <label className="block mb-2 font-medium">Area (sqft)</label>
+              <input
+                name="area"
+                value={formData.area}
+                onChange={handleChange}
+                className="w-full p-3 border rounded-lg dark:bg-gray-900 focus:ring-2 focus:ring-blue-500 outline-none"
+              />
             </div>
 
-            <div>
-              <label className="block mb-2 font-medium">Price</label>
-              <input name="price"
-                value={formData.price}
-                onChange={handleChange}
-                className="p-3 border rounded-lg w-full dark:bg-gray-900" required />
-            </div>
+            {/* RESIDENTIAL DETAILS */}
+            <div className="border-t pt-6">
+              {!isPlotOrLand && (
+                <div className="space-y-6">
 
-          </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
 
-          {/* NEGOTIABLE */}
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              name="priceNegotiable"
-              checked={formData.priceNegotiable}
-              onChange={handleChange}
-            />
-            <label>Price Negotiable</label>
-          </div>
+                    <div>
+                      <label className="block mb-2 font-medium">Bedrooms</label>
+                      <input
+                        name="bedrooms"
+                        value={formData.bedrooms}
+                        onChange={handleChange}
+                        className="w-full p-3 border rounded-lg dark:bg-gray-900 focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
 
-          {/* AREA */}
-          <div>
-            <label className="block mb-2 font-medium">Area (sqft)</label>
-            <input name="area"
-              value={formData.area}
-              onChange={handleChange}
-              className="p-3 border rounded-lg w-full dark:bg-gray-900" />
-          </div>
+                    <div>
+                      <label className="block mb-2 font-medium">Bathrooms</label>
+                      <input
+                        name="bathrooms"
+                        value={formData.bathrooms}
+                        onChange={handleChange}
+                        className="w-full p-3 border rounded-lg dark:bg-gray-900 focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
 
-          {/* RESIDENTIAL DETAILS */}
-          {!isPlotOrLand && (
-            <>
-              <div className="grid md:grid-cols-3 gap-4">
-
-                <div>
-                  <label className="block mb-2 font-medium">Bedrooms</label>
-                  <input name="bedrooms"
-                    value={formData.bedrooms}
-                    onChange={handleChange}
-                    className="p-3 border rounded-lg w-full dark:bg-gray-900" />
-                </div>
-
-                <div>
-                  <label className="block mb-2 font-medium">Bathrooms</label>
-                  <input name="bathrooms"
-                    value={formData.bathrooms}
-                    onChange={handleChange}
-                    className="p-3 border rounded-lg w-full dark:bg-gray-900" />
-                </div>
-
-                {!isCommercial && (
-                  <div>
-                    <label className="block mb-2 font-medium">Balconies</label>
-                    <input name="balconies"
-                      value={formData.balconies}
-                      onChange={handleChange}
-                      className="p-3 border rounded-lg w-full dark:bg-gray-900" />
+                    {!isCommercial && (
+                      <div>
+                        <label className="block mb-2 font-medium">Balconies</label>
+                        <input
+                          name="balconies"
+                          value={formData.balconies}
+                          onChange={handleChange}
+                          className="w-full p-3 border rounded-lg dark:bg-gray-900 focus:ring-2 focus:ring-blue-500 outline-none"
+                        />
+                      </div>
+                    )}
                   </div>
-                )}
 
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+
+                    <div>
+                      <label className="block mb-2 font-medium">Floor</label>
+                      <input
+                        name="floor"
+                        value={formData.floor}
+                        onChange={handleChange}
+                        className="w-full p-3 border rounded-lg dark:bg-gray-900 focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block mb-2 font-medium">Total Floors</label>
+                      <input
+                        name="totalFloors"
+                        value={formData.totalFloors}
+                        onChange={handleChange}
+                        className="w-full p-3 border rounded-lg dark:bg-gray-900 focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block mb-2 font-medium">Property Age</label>
+                      <select
+                        name="propertyAge"
+                        value={formData.propertyAge}
+                        onChange={handleChange}
+                        className="w-full p-3 border rounded-lg dark:bg-gray-900 focus:ring-2 focus:ring-blue-500 outline-none"
+                      >
+                        <option value="">Select</option>
+                        <option value="NEW">New</option>
+                        <option value="1-5 YEARS">1-5 Years</option>
+                        <option value="5-10 YEARS">5-10 Years</option>
+                        <option value="10+ YEARS">10+ Years</option>
+                      </select>
+                    </div>
+
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+
+                    <div>
+                      <label className="block mb-2 font-medium">Furnishing</label>
+                      <select
+                        name="furnishing"
+                        value={formData.furnishing}
+                        onChange={handleChange}
+                        className="w-full p-3 border rounded-lg dark:bg-gray-900 focus:ring-2 focus:ring-blue-500 outline-none"
+                      >
+                        <option value="">Select</option>
+                        <option value="FULLY_FURNISHED">FULLY FURNISHED</option>
+                        <option value="SEMI_FURNISHED">SEMI FURNISHED</option>
+                        <option value="UNFURNISHED">UNFURNISHED</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block mb-2 font-medium">Parking</label>
+                      <select
+                        name="parking"
+                        value={formData.parking}
+                        onChange={handleChange}
+                        className="w-full p-3 border rounded-lg dark:bg-gray-900 focus:ring-2 focus:ring-blue-500 outline-none"
+                      >
+                        <option value="">Select</option>
+                        <option value="NONE">None</option>
+                        <option value="BIKE">Bike</option>
+                        <option value="CAR">Car</option>
+                        <option value="BOTH">Both</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block mb-2 font-medium">Facing</label>
+                      <select
+                        name="facing"
+                        value={formData.facing}
+                        onChange={handleChange}
+                        className="w-full p-3 border rounded-lg dark:bg-gray-900 focus:ring-2 focus:ring-blue-500 outline-none"
+                      >
+                        <option value="">Select</option>
+                        <option value="NORTH">North</option>
+                        <option value="SOUTH">South</option>
+                        <option value="EAST">East</option>
+                        <option value="WEST">West</option>
+                      </select>
+                    </div>
+
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* MAINTENANCE */}
+            <div className="border-t pt-6">
+              <div>
+                <label className="block mb-2 font-medium">Maintenance Charge</label>
+                <input
+                  name="maintenanceCharge"
+                  value={formData.maintenanceCharge}
+                  onChange={handleChange}
+                  className="w-full p-3 border rounded-lg dark:bg-gray-900 focus:ring-2 focus:ring-blue-500 outline-none"
+                />
               </div>
+            </div>
 
-              <div className="grid md:grid-cols-3 gap-4 mt-4">
-
-                <div>
-                  <label className="block mb-2 font-medium">Floor</label>
-                  <input name="floor"
-                    value={formData.floor}
-                    onChange={handleChange}
-                    className="p-3 border rounded-lg w-full dark:bg-gray-900" />
-                </div>
-
-                <div>
-                  <label className="block mb-2 font-medium">Total Floors</label>
-                  <input name="totalFloors"
-                    value={formData.totalFloors}
-                    onChange={handleChange}
-                    className="p-3 border rounded-lg w-full dark:bg-gray-900" />
-                </div>
-
-                <div>
-                  <label className="block mb-2 font-medium">Property Age</label>
-                  <select name="propertyAge"
-                    value={formData.propertyAge}
-                    onChange={handleChange}
-                    className="p-3 border rounded-lg w-full dark:bg-gray-900">
-                    <option value="">Select</option>
-                    <option value="NEW">New</option>
-                    <option value="1-5 YEARS">1-5 Years</option>
-                    <option value="5-10 YEARS">5-10 Years</option>
-                    <option value="10+ YEARS">10+ Years</option>
-                  </select>
-                </div>
-
-              </div>
-
-              <div className="grid md:grid-cols-3 gap-4 mt-4">
-
-                <div>
-                  <label className="block mb-2 font-medium">Furnishing</label>
-                  <select name="furnishing"
-                    value={formData.furnishing}
-                    onChange={handleChange}
-                    className="p-3 border rounded-lg w-full dark:bg-gray-900">
-                    <option value="">Select</option>
-                    <option value="FULLY_FURNISHED">FULLY FURNISHED</option>
-                    <option value="SEMI_FURNISHED">SEMI FURNISHED</option>
-                    <option value="UNFURNISHED">UNFURNISHED</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block mb-2 font-medium">Parking</label>
-                  <select name="parking"
-                    value={formData.parking}
-                    onChange={handleChange}
-                    className="p-3 border rounded-lg w-full dark:bg-gray-900">
-                    <option value="">Select</option>
-                    <option value="NONE">None</option>
-                    <option value="BIKE">Bike</option>
-                    <option value="CAR">Car</option>
-                    <option value="BOTH">Both</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block mb-2 font-medium">Facing</label>
-                  <select name="facing"
-                    value={formData.facing}
-                    onChange={handleChange}
-                    className="p-3 border rounded-lg w-full dark:bg-gray-900">
-                    <option value="">Select</option>
-                    <option value="NORTH">North</option>
-                    <option value="SOUTH">South</option>
-                    <option value="EAST">East</option>
-                    <option value="WEST">West</option>
-                  </select>
-                </div>
-
-              </div>
-            </>
-          )}
-
-          {/* MAINTENANCE */}
-          <div>
-            <label className="block mb-2 font-medium">Maintenance Charge</label>
-            <input name="maintenanceCharge"
-              value={formData.maintenanceCharge}
-              onChange={handleChange}
-              className="p-3 border rounded-lg w-full dark:bg-gray-900" />
           </div>
 
           {/* LOCATION */}
-          <div>
-            <h3 className="text-lg font-semibold mb-4">Location Coordinates</h3>
-            <div className="grid md:grid-cols-2 gap-4">
+          <div className="bg-gray-50 dark:bg-gray-900 p-4 sm:p-6 rounded-xl shadow-sm space-y-4 mt-6">
+
+            <h3 className="text-lg font-semibold">Location Coordinates</h3>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
               <div>
                 <label className="block mb-2 font-medium">Latitude</label>
-                <input name="lat"
+                <input
+                  name="lat"
                   value={formData.lat}
                   onChange={handleChange}
-                  className="p-3 border rounded-lg w-full dark:bg-gray-900" />
+                  className="w-full p-3 border rounded-lg dark:bg-gray-900 focus:ring-2 focus:ring-blue-500 outline-none"
+                />
               </div>
 
               <div>
                 <label className="block mb-2 font-medium">Longitude</label>
-                <input name="lng"
+                <input
+                  name="lng"
                   value={formData.lng}
                   onChange={handleChange}
-                  className="p-3 border rounded-lg w-full dark:bg-gray-900" />
+                  className="w-full p-3 border rounded-lg dark:bg-gray-900 focus:ring-2 focus:ring-blue-500 outline-none"
+                />
               </div>
 
             </div>
           </div>
 
           {/* ADDRESS */}
-          <div>
-            <h3 className="text-lg font-semibold mb-4">Address Details</h3>
+          <div className="bg-gray-50 dark:bg-gray-900 p-4 sm:p-6 rounded-xl shadow-sm hover:shadow-md transition space-y-4">
+            <h3 className="text-lg font-semibold">Address Details</h3>
 
-            <input name="address"
+            <input
+              name="address"
               value={formData.address}
               onChange={handleChange}
               placeholder="Address"
-              className="w-full p-3 border rounded-lg mb-4 dark:bg-gray-900" required />
+              className="w-full p-3 border rounded-lg dark:bg-gray-900"
+            />
 
-            <div className="grid md:grid-cols-3 gap-4">
-              <input name="city"
-                value={formData.city}
-                onChange={handleChange}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+              <input name="city" value={formData.city} onChange={handleChange}
                 placeholder="City"
-                className="p-3 border rounded-lg w-full dark:bg-gray-900" required />
+                className="p-3 border rounded-lg w-full dark:bg-gray-900" />
 
-              <input name="state"
-                value={formData.state}
-                onChange={handleChange}
+              <input name="state" value={formData.state} onChange={handleChange}
                 placeholder="State"
-                className="p-3 border rounded-lg w-full dark:bg-gray-900" required />
+                className="p-3 border rounded-lg w-full dark:bg-gray-900" />
 
-              <input name="pincode"
-                value={formData.pincode}
-                onChange={handleChange}
+              <input name="pincode" value={formData.pincode} onChange={handleChange}
                 placeholder="Pincode"
-                className="p-3 border rounded-lg w-full dark:bg-gray-900" required />
+                className="p-3 border rounded-lg w-full dark:bg-gray-900" />
             </div>
           </div>
 
           {/* AMENITIES */}
-          <div>
-            <h3 className="font-semibold mb-2">Amenities</h3>
+          <div className="bg-gray-50 dark:bg-gray-900 p-4 sm:p-6 rounded-xl shadow-sm hover:shadow-md transition space-y-4">
+            <h3 className="text-lg font-semibold">Amenities</h3>
+
             <div className="flex flex-wrap gap-2">
               {AMENITIES.map(a => (
-              <button
-                type="button"
-                key={a.value}
-                onClick={() => toggleAmenity(a.value)}
-                className={`px-3 py-1 rounded-full border ${
-                  amenities.includes(a.value) ? "bg-blue-600 text-white" : ""
-                }`}
-              >
-                {a.label}
-              </button>
-            ))}
+                <button
+                  type="button"
+                  key={a.value}
+                  onClick={() => toggleAmenity(a.value)}
+                  className={`px-4 py-2 text-sm rounded-full border transition ${
+                    amenities.includes(a.value)
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-100 dark:bg-gray-800"
+                  }`}
+                >
+                  {a.label}
+                </button>
+              ))}
             </div>
           </div>
 
           {/* IMAGE UPLOAD */}
-          <div>
-            <label className="block mb-2 font-medium">Upload Images</label>
-            <label className="flex flex-col items-center justify-center border-2 border-dashed p-6 rounded-lg cursor-pointer">
+          <div className="bg-gray-50 dark:bg-gray-900 p-4 sm:p-6 rounded-xl shadow-sm space-y-4 mt-6">
+
+            <h3 className="text-lg font-semibold">Property Images</h3>
+
+            {/* Upload Box */}
+            <label className="flex flex-col items-center justify-center border-2 border-dashed p-6 rounded-xl cursor-pointer hover:border-blue-500 transition">
               <FaUpload className="text-2xl mb-2" />
-              Upload Images
+              <span className="text-sm text-gray-600 dark:text-gray-400">
+                Click to upload (Max 10 images)
+              </span>
+
               <input
                 ref={fileInputRef}
                 type="file"
@@ -515,32 +583,34 @@ const AddProperty = () => {
                 onChange={handleImageChange}
               />
             </label>
+
+            {/* Preview Grid */}
+            {preview.length > 0 && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mt-4">
+                {preview.map((img, i) => (
+                  <div key={i} className="relative group">
+                    <img
+                      src={img}
+                      className="h-24 w-full object-cover rounded-lg cursor-pointer"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => removeImage(i)}
+                      className="absolute top-1 right-1 bg-black/70 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
           </div>
 
-          {preview.length > 0 && (
-            <div className="grid grid-cols-3 gap-3">
-              {preview.map((img, i) => (
-                <div key={i} className="relative">
-                  <img
-                    src={img}
-                    className="h-24 w-full object-cover rounded"
-                  />
-
-                  <button
-                    type="button"
-                    onClick={() => removeImage(i)}
-                    className="absolute top-1 right-1 bg-black text-white text-xs px-2 rounded"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="flex gap-4 pt-4">
+          <div className="flex flex-col sm:flex-row gap-3 pt-4">
             <button type="submit"
-              className="bg-blue-600 text-white px-6 py-3 rounded-lg">
+              className="bg-blue-600 hover:bg-blue-700 transition text-white px-6 py-3 rounded-lg w-full sm:w-auto shadow">
               Add Property
             </button>
 
