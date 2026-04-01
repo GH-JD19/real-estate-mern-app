@@ -91,7 +91,7 @@ function PropertyCard({ property, onClick }) {
     >
 
       {/* IMAGE */}
-      <div className="relative h-56 overflow-hidden">
+      <div className="relative h-44 sm:h-52 overflow-hidden">
 
         <Swiper
           modules={[Navigation, Pagination]}
@@ -165,15 +165,15 @@ function PropertyCard({ property, onClick }) {
       </div>
 
       {/* CONTENT */}
-      <div className="p-5 space-y-3">
+      <div className="p-4 sm:p-5 space-y-2 sm:space-y-3">
 
         {/* PRICE */}
-        <div className="text-2xl font-bold text-blue-600">
+        <div className="text-xl sm:text-2xl font-bold text-blue-600">
           ₹ {property.price?.toLocaleString()}
         </div>
 
         {/* TITLE */}
-        <h3 className="font-semibold text-lg text-gray-800 dark:text-white line-clamp-1 group-hover:text-blue-600 transition">
+        <h3 className="font-semibold text-base sm:text-lg text-gray-800 dark:text-white line-clamp-1 group-hover:text-blue-600 transition">
           {property.title}
         </h3>
 
@@ -208,7 +208,7 @@ function PropertyCard({ property, onClick }) {
             e.stopPropagation()
             onClick()
           }}
-          className="w-full mt-3 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-medium transition"
+          className="w-full mt-3 bg-blue-600 hover:bg-blue-700 text-white py-2 sm:py-2.5 rounded-lg font-medium transition"
         >
           View Details
         </button>

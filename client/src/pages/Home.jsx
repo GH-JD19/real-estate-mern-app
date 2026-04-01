@@ -1,4 +1,4 @@
-import { useEffect, useState, lazy, Suspense } from "react"
+import { useEffect, useState, lazy, Suspense, useCallback } from "react"
 import { Helmet } from "react-helmet-async"
 import api from "../services/api"
 
@@ -12,39 +12,111 @@ import SectionSkeleton from "../components/SectionSkeleton"
 const Testimonials = lazy(() => import("../components/Testimonials"))
 
 function Home() {
+  // DATA STATES
   const [featured, setFeatured] = useState([])
   const [properties, setProperties] = useState([])
   const [totalPages, setTotalPages] = useState(1)
   const [page, setPage] = useState(1)
 
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  // LOADING STATES (SEPARATED)
+  const [featuredLoading, setFeaturedLoading] = useState(true)
+  const [propertiesLoading, setPropertiesLoading] = useState(true)
 
-  // Fetch function
-  const fetchHome = async (currentPage = 1) => {
+  // ERROR STATES (SEPARATED)
+  const [featuredError, setFeaturedError] = useState(null)
+  const [propertiesError, setPropertiesError] = useState(null)
+
+  // ==============================
+  // FETCH FEATURED PROPERTIES
+  // ==============================
+  const fetchFeatured = useCallback(async () => {
     try {
-      setLoading(true)
+      setFeaturedLoading(true)
 
-      const { data } = await api.get(`/home-data?page=${currentPage}`)
+      const res = await api.get(`/properties/featured`)
 
-      setFeatured(data?.featured || [])
-      setProperties(data?.properties || [])
-      setTotalPages(data?.totalPages || 1)
+      if (process.env.NODE_ENV === "development") {
+        console.log("FEATURED:", res.data)
+      }
 
-      setError(null)
+      setFeatured(res.data.properties || [])
+      setFeaturedError(null)
     } catch (err) {
       console.error(err)
-      setError(
-        err.response?.data?.message || "Failed to load homepage data"
+      setFeaturedError(
+        err?.response?.data?.message ||
+        err?.message ||
+        "Failed to load featured properties"
       )
     } finally {
-      setLoading(false)
+      setFeaturedLoading(false)
     }
-  }
+  }, [])
 
+  // ==============================
+  // FETCH PAGINATED PROPERTIES
+  // ==============================
+  const fetchProperties = useCallback(async (currentPage = 1) => {
+    try {
+      setPropertiesLoading(true)
+
+      const res = await api.get(`/properties?page=${currentPage}`)
+
+      if (process.env.NODE_ENV === "development") {
+        console.log("PROPERTIES:", res.data)
+      }
+
+      setProperties(res.data.properties || [])
+      setTotalPages(res.data.totalPages || 1)
+      setPropertiesError(null)
+    } catch (err) {
+      console.error(err)
+      setPropertiesError(
+        err?.response?.data?.message ||
+        err?.message ||
+        "Failed to load properties"
+      )
+    } finally {
+      setPropertiesLoading(false)
+    }
+  }, [])
+
+  // ==============================
+  // EFFECT: LOAD FEATURED ONCE
+  // ==============================
   useEffect(() => {
-    fetchHome(page)
-  }, [page])
+    let isMounted = true
+
+    const load = async () => {
+      if (isMounted) await fetchFeatured()
+    }
+
+    load()
+
+    return () => {
+      isMounted = false
+    }
+  }, [fetchFeatured])
+
+  // ==============================
+  // EFFECT: LOAD PROPERTIES ON PAGE CHANGE
+  // ==============================
+  useEffect(() => {
+    let isMounted = true
+
+    const load = async () => {
+      if (isMounted) await fetchProperties(page)
+    }
+
+    load()
+
+    // Scroll to top on page change
+    window.scrollTo({ top: 0, behavior: "smooth" })
+
+    return () => {
+      isMounted = false
+    }
+  }, [page, fetchProperties])
 
   return (
     <div className="bg-gray-50 dark:bg-gray-900 min-h-screen">
@@ -58,30 +130,34 @@ function Home() {
         />
       </Helmet>
 
+      {/* HERO */}
       <HeroSection />
 
+      {/* FEATURED */}
       <FeaturedSection
         data={featured}
-        loading={loading}
-        error={error}
-        onRetry={() => fetchHome(page)}
+        loading={featuredLoading}
+        error={featuredError}
+        onRetry={fetchFeatured}
       />
 
+      {/* WHY CHOOSE US */}
       <WhyChooseUs />
 
-      {/* Lazy Loaded Testimonials */}
+      {/* TESTIMONIALS (LAZY) */}
       <Suspense fallback={<SectionSkeleton height="200px" />}>
         <Testimonials />
       </Suspense>
 
+      {/* PROPERTY LIST */}
       <PropertyList
         data={properties}
         totalPages={totalPages}
         currentPage={page}
         onPageChange={setPage}
-        loading={loading}
-        error={error}
-        onRetry={() => fetchHome(page)}
+        loading={propertiesLoading}
+        error={propertiesError}
+        onRetry={() => fetchProperties(page)}
       />
     </div>
   )
