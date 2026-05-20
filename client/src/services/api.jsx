@@ -1,83 +1,139 @@
-import axios from "axios";
-import { loaderRef } from "../context/LoaderRef";
+import axios from "axios"
+import { loaderRef } from "../context/LoaderRef"
 
+// 🔹 BASE URL (ENV SAFE)
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000/api"
+
+// 🔹 AXIOS INSTANCE
 const api = axios.create({
-  baseURL: "http://localhost:5000/api"
-});
+  baseURL: API_BASE,
+  withCredentials: true,
+})
+
+// 🔹 TOKEN HELPERS
+const getAccessToken = () =>
+  localStorage.getItem("accessToken") ||
+  sessionStorage.getItem("accessToken")
+
+const getRefreshToken = () =>
+  localStorage.getItem("refreshToken") ||
+  sessionStorage.getItem("refreshToken")
+
+const setAccessToken = (token) => {
+  if (localStorage.getItem("accessToken")) {
+    localStorage.setItem("accessToken", token)
+  } else {
+    sessionStorage.setItem("accessToken", token)
+  }
+}
+
+// 🔹 LOGOUT HANDLER (CENTRALIZED)
+const handleLogout = () => {
+  localStorage.clear()
+  sessionStorage.clear()
+  window.location.href = "/login"
+}
+
+// 🔹 REFRESH CONTROL (PREVENT MULTIPLE CALLS)
+let isRefreshing = false
+let failedQueue = []
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error)
+    } else {
+      prom.resolve(token)
+    }
+  })
+  failedQueue = []
+}
 
 // ================= REQUEST =================
 api.interceptors.request.use(
   (config) => {
-    loaderRef.current?.setLoading(true);
+    loaderRef.current?.setLoading(true)
 
-    const token =
-      localStorage.getItem("accessToken") ||
-      sessionStorage.getItem("accessToken");
+    const token = getAccessToken()
 
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+      config.headers.Authorization = `Bearer ${token}`
     }
 
-    return config;
+    return config
   },
   (error) => {
-    loaderRef.current?.setLoading(false);
-    return Promise.reject(error);
+    loaderRef.current?.setLoading(false)
+    return Promise.reject(error)
   }
-);
+)
 
 // ================= RESPONSE =================
 api.interceptors.response.use(
   (response) => {
-    loaderRef.current?.setLoading(false);
-    return response;
+    loaderRef.current?.setLoading(false)
+    return response
   },
   async (error) => {
-    loaderRef.current?.setLoading(false);
+    loaderRef.current?.setLoading(false)
 
-    const originalRequest = error.config;
+    const originalRequest = error.config
 
-    // 🔥 TOKEN EXPIRED HANDLING
+    // 🔴 HANDLE 401
     if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
+
+      if (isRefreshing) {
+        // 🔁 QUEUE REQUESTS
+        return new Promise((resolve, reject) => {
+          failedQueue.push({
+            resolve: (token) => {
+              originalRequest.headers.Authorization = `Bearer ${token}`
+              resolve(api(originalRequest))
+            },
+            reject: (err) => reject(err)
+          })
+        })
+      }
+
+      originalRequest._retry = true
+      isRefreshing = true
 
       try {
-        const refreshToken =
-          localStorage.getItem("refreshToken") ||
-          sessionStorage.getItem("refreshToken");
+        const refreshToken = getRefreshToken()
 
         if (!refreshToken) {
-          throw new Error("No refresh token");
+          throw new Error("No refresh token")
         }
 
-        // 🔁 CALL REFRESH API
-        const res = await axios.post(
-          "http://localhost:5000/api/auth/refresh",
-          { refreshToken }
-        );
+        // 🔁 REFRESH CALL
+        const res = await axios.post(`${API_BASE}/auth/refresh`, {
+          refreshToken
+        })
 
-        const newAccessToken = res.data.accessToken;
+        const newAccessToken = res.data.accessToken
 
-        // 💾 SAVE NEW TOKEN
-        localStorage.setItem("accessToken", newAccessToken);
+        setAccessToken(newAccessToken)
 
-        // 🔁 UPDATE HEADER
-        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+        // 🔁 UPDATE DEFAULT HEADER
+        api.defaults.headers.common.Authorization = `Bearer ${newAccessToken}`
+
+        processQueue(null, newAccessToken)
 
         // 🔁 RETRY ORIGINAL REQUEST
-        return api(originalRequest);
+        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`
+        return api(originalRequest)
 
       } catch (err) {
-        // ❌ REFRESH FAILED → LOGOUT
-        localStorage.clear();
-        sessionStorage.clear();
-
-        window.location.href = "/login";
+        processQueue(err, null)
+        handleLogout()
+        return Promise.reject(err)
+      } finally {
+        isRefreshing = false
       }
     }
 
-    return Promise.reject(error);
+    return Promise.reject(error)
   }
-);
+)
 
-export default api;
+export default api

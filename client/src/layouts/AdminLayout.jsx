@@ -1,26 +1,38 @@
-import { useState } from "react"
+import { useState, useMemo, useCallback } from "react"
+import { Outlet } from "react-router-dom"
 import Sidebar from "../components/Sidebar"
 import { useNotification } from "../context/NotificationContext"
 
-const AdminLayout = ({ children }) => {
+const AdminLayout = () => {
 
   const [collapsed, setCollapsed] = useState(false)
 
   const { unread, notifications } = useNotification()
 
+  // 🔹 STABLE TOGGLE (prevents unnecessary re-renders in Sidebar)
+  const handleToggle = useCallback(() => {
+    setCollapsed(prev => !prev)
+  }, [])
+
+  // 🔹 MEMOIZED SIDEBAR PROPS
+  const sidebarProps = useMemo(() => ({
+    collapsed,
+    setCollapsed,
+    toggleCollapsed: handleToggle,
+    unread,
+    notifications
+  }), [collapsed, handleToggle, unread, notifications])
+
   return (
     <div className="flex min-h-screen bg-gray-100 text-gray-900 dark:bg-gray-900 dark:text-gray-100">
 
-      <Sidebar
-        collapsed={collapsed}
-        setCollapsed={setCollapsed}
-        unread={unread}
-        notifications={notifications}
-      />
+      {/* 🔹 SIDEBAR */}
+      <Sidebar {...sidebarProps} />
 
-      <div className="flex-1 p-6">
-        {children}
-      </div>
+      {/* 🔹 MAIN CONTENT */}
+      <main className="flex-1 p-6 overflow-y-auto">
+        <Outlet />
+      </main>
 
     </div>
   )

@@ -1,6 +1,6 @@
-import { useEffect, useState, useMemo } from "react"
+import { useEffect, useState, useMemo, useRef } from "react"
 import api from "../../services/api"
-import socket from "../../services/socket"
+import { io } from "socket.io-client"
 
 import { toast } from "react-toastify"
 import { CheckCircle, XCircle, Search, Eye, Download } from "lucide-react"
@@ -9,6 +9,8 @@ import * as XLSX from "xlsx"
 import { saveAs } from "file-saver"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
+
+const SOCKET_URL = import.meta.env.VITE_API_URL || "http://localhost:5000"
 
 function AdminBookings() {
 
@@ -25,44 +27,64 @@ function AdminBookings() {
   const [selectedBooking, setSelectedBooking] = useState(null)
   const [confirmModal, setConfirmModal] = useState(null)
 
-  // 🚀 FETCH
+  const debounceRef = useRef(null)
+  const socketRef = useRef(null)
+  const abortRef = useRef(null)
+
+  // ================= FETCH =================
   const fetchBookings = async (showLoader = false) => {
     try {
       if (showLoader) setLoading(true)
 
-      const res = await api.get("/visits/admin")
-      setBookings(res.data.visits || [])
+      // cancel previous request
+      abortRef.current?.abort()
+      abortRef.current = new AbortController()
+
+      const res = await api.get("/visits/admin", {
+        signal: abortRef.current.signal
+      })
+
+      setBookings(Array.isArray(res.data?.visits) ? res.data.visits : [])
 
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Failed to load bookings")
+      if (err.name !== "CanceledError") {
+        toast.error(err?.response?.data?.message || "Failed to load bookings")
+      }
     } finally {
       if (showLoader) setLoading(false)
     }
   }
 
-  // 🚀 REAL-TIME SOCKET
+  // ================= SOCKET =================
   useEffect(() => {
 
     fetchBookings(true)
 
-    if (!socket.connected) {
-      socket.connect()
-      socket.emit("joinAdmin")
-    }
+    const newSocket = io(SOCKET_URL, { withCredentials: true })
+    socketRef.current = newSocket
+
+    newSocket.emit("joinAdmin")
 
     const handleUpdate = () => {
-      console.log("Realtime booking update")
-      fetchBookings(false)
+      clearTimeout(debounceRef.current)
+
+      debounceRef.current = setTimeout(() => {
+        fetchBookings(false)
+      }, 500)
     }
 
-    socket.on("dashboard:update", handleUpdate)
+    newSocket.on("dashboard:update", handleUpdate)
 
     return () => {
-      socket.off("dashboard:update", handleUpdate)
+      clearTimeout(debounceRef.current)
+      newSocket.off("dashboard:update", handleUpdate)
+      newSocket.disconnect()
+      abortRef.current?.abort()
     }
 
   }, [])
 
+  // ================= UPDATE STATUS =================
   const updateStatus = async (id, status) => {
     try {
       await api.put(`/visits/${id}`, { status })
@@ -76,24 +98,23 @@ function AdminBookings() {
 
   const statusColor = (status) => {
     switch (status) {
-      case "APPROVED":
-        return "bg-green-500/90"
-      case "REJECTED":
-        return "bg-red-500/90"
-      default:
-        return "bg-yellow-500/90"
+      case "APPROVED": return "bg-green-500/90"
+      case "REJECTED": return "bg-red-500/90"
+      default: return "bg-yellow-500/90"
     }
   }
 
-  // 🔍 FILTER
+  // ================= FILTER =================
   const filteredBookings = useMemo(() => {
     let data = [...bookings]
 
     if (search) {
+      const s = search.toLowerCase()
+
       data = data.filter(b =>
-        b.user?.name?.toLowerCase().includes(search.toLowerCase()) ||
-        b.user?.email?.toLowerCase().includes(search.toLowerCase()) ||
-        b.property?.title?.toLowerCase().includes(search.toLowerCase())
+        b.user?.name?.toLowerCase()?.includes(s) ||
+        b.user?.email?.toLowerCase()?.includes(s) ||
+        b.property?.title?.toLowerCase()?.includes(s)
       )
     }
 
@@ -102,15 +123,19 @@ function AdminBookings() {
     }
 
     data.sort((a, b) => {
-      const dateA = new Date(a.visitDate)
-      const dateB = new Date(b.visitDate)
+      const dateA = new Date(a.visitDate || 0)
+      const dateB = new Date(b.visitDate || 0)
       return sortOrder === "LATEST" ? dateB - dateA : dateA - dateB
     })
 
     return data
   }, [bookings, search, filterStatus, sortOrder])
 
-  const totalPages = Math.ceil(filteredBookings.length / itemsPerPage)
+  const totalPages = Math.max(1, Math.ceil(filteredBookings.length / itemsPerPage))
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(1)
+  }, [totalPages])
 
   const paginatedBookings = filteredBookings.slice(
     (currentPage - 1) * itemsPerPage,
@@ -121,30 +146,33 @@ function AdminBookings() {
     setCurrentPage(1)
   }, [search, filterStatus])
 
-  // 📤 EXPORT FORMAT
+  // ================= EXPORT =================
   const formatData = () => filteredBookings.map(b => ({
-    Property: b.property?.title,
-    User: b.user?.name,
-    Email: b.user?.email,
+    Property: b.property?.title || "",
+    User: b.user?.name || "",
+    Email: b.user?.email || "",
     Date: new Date(b.visitDate).toLocaleString(),
     Status: b.status
   }))
 
+  const safeCSV = (v) => `"${String(v).replace(/"/g, '""')}"`
+
   const exportCSV = () => {
     const data = formatData()
-    if (!data.length) return
+    if (!data.length) return toast.warning("No data to export")
 
-    const headers = Object.keys(data[0]).join(",")
-    const rows = data.map(row => Object.values(row).join(",")).join("\n")
-    const csv = headers + "\n" + rows
+    const headers = Object.keys(data[0]).map(safeCSV).join(",")
+    const rows = data.map(row =>
+      Object.values(row).map(safeCSV).join(",")
+    ).join("\n")
 
-    const blob = new Blob([csv])
+    const blob = new Blob([headers + "\n" + rows], { type: "text/csv" })
     saveAs(blob, "bookings.csv")
   }
 
   const exportExcel = () => {
     const data = formatData()
-    if (!data.length) return
+    if (!data.length) return toast.warning("No data to export")
 
     const ws = XLSX.utils.json_to_sheet(data)
     const wb = XLSX.utils.book_new()
@@ -156,7 +184,7 @@ function AdminBookings() {
 
   const exportPDF = () => {
     const data = formatData()
-    if (!data.length) return
+    if (!data.length) return toast.warning("No data to export")
 
     const doc = new jsPDF()
     doc.text("Bookings Report", 14, 15)
@@ -170,8 +198,9 @@ function AdminBookings() {
     doc.save("bookings.pdf")
   }
 
+  // ================= UI =================
   return (
-    <div className="p-6 md:p-10 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-900 dark:to-gray-950 min-h-screen">
+    <div className="min-h-screen p-6">
 
       {/* HEADER */}
       <div className="mb-6">
@@ -207,17 +236,18 @@ function AdminBookings() {
           <option value="OLDEST">Oldest</option>
         </select>
 
-        <button onClick={exportCSV} className="bg-blue-600 text-white px-3 py-2 rounded flex items-center gap-1">
-          <Download size={16}/> CSV
-        </button>
-
-        <button onClick={exportExcel} className="bg-green-600 text-white px-3 py-2 rounded flex items-center gap-1">
-          <Download size={16}/> Excel
-        </button>
-
-        <button onClick={exportPDF} className="bg-red-600 text-white px-3 py-2 rounded flex items-center gap-1">
-          <Download size={16}/> PDF
-        </button>
+        {[{fn:exportCSV,label:"CSV",color:"bg-blue-600"},
+          {fn:exportExcel,label:"Excel",color:"bg-green-600"},
+          {fn:exportPDF,label:"PDF",color:"bg-red-600"}].map((btn,i)=>(
+          <button
+            key={i}
+            disabled={loading}
+            onClick={btn.fn}
+            className={`px-3 py-2 rounded flex items-center gap-1 text-white ${btn.color} disabled:opacity-50`}
+          >
+            <Download size={16}/> {btn.label}
+          </button>
+        ))}
 
       </div>
 
@@ -248,7 +278,8 @@ function AdminBookings() {
 
                 <div className="flex gap-2 mt-4 flex-wrap">
 
-                  <button onClick={() => setSelectedBooking(b)} className="bg-blue-600 text-white px-3 py-1 rounded flex items-center gap-1">
+                  <button onClick={() => setSelectedBooking(b)}
+                    className="bg-blue-600 text-white px-3 py-1 rounded flex items-center gap-1">
                     <Eye size={16}/> View
                   </button>
 
@@ -288,10 +319,16 @@ function AdminBookings() {
         </>
       )}
 
-      {/* MODALS (UNCHANGED) */}
+      {/* VIEW MODAL */}
       {selectedBooking && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl">
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center"
+          onClick={() => setSelectedBooking(null)}
+        >
+          <div
+            className="bg-white dark:bg-gray-800 p-6 rounded-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h3 className="font-bold mb-2">Details</h3>
             <p>{selectedBooking.property?.title}</p>
             <button onClick={() => setSelectedBooking(null)}>Close</button>
@@ -299,9 +336,16 @@ function AdminBookings() {
         </div>
       )}
 
+      {/* CONFIRM MODAL */}
       {confirmModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl text-center">
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center"
+          onClick={() => setConfirmModal(null)}
+        >
+          <div
+            className="bg-white dark:bg-gray-800 p-6 rounded-xl text-center"
+            onClick={(e) => e.stopPropagation()}
+          >
             <p>Confirm {confirmModal.status}?</p>
             <button onClick={() => updateStatus(confirmModal.id, confirmModal.status)}>Yes</button>
             <button onClick={() => setConfirmModal(null)}>Cancel</button>

@@ -10,13 +10,65 @@ const {
   adminUpdatePropertyStatus
 } = require("../controllers/propertyController")
 
-router.use(protect)
-router.use(authorize("admin"))
+const rateLimit = require("express-rate-limit")
+const mongoose = require("mongoose")
 
+// ✅ Rate limiter (protect heavy admin actions)
+const adminPropertyLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 50, // adjust if needed
+  message: "Too many requests, please try again later"
+})
+
+// ✅ Validate Mongo ObjectId
+const validateObjectId = (req, res, next) => {
+  const { id } = req.params
+
+  if (id && !mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid ID format"
+    })
+  }
+
+  next()
+}
+
+// ✅ Validate property status (only if used)
+const validateStatus = (req, res, next) => {
+  const { status } = req.body
+
+  const allowedStatuses = ["pending", "approved", "rejected"]
+
+  if (status && !allowedStatuses.includes(status)) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid status value"
+    })
+  }
+
+  next()
+}
+
+// 🔐 Apply global protections
+router.use(protect, authorize("admin"), adminPropertyLimiter)
+
+// 📊 Get all properties (Admin)
 router.get("/properties", adminGetAllProperties)
 
-router.delete("/properties/:id", adminDeleteProperty)
+// ❌ Delete property
+router.delete(
+  "/properties/:id",
+  validateObjectId,
+  adminDeleteProperty
+)
 
-router.put("/properties/status/:id", adminUpdatePropertyStatus)
+// 🔄 Update property status
+router.put(
+  "/properties/status/:id",
+  validateObjectId,
+  validateStatus,
+  adminUpdatePropertyStatus
+)
 
 module.exports = router

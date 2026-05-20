@@ -1,4 +1,4 @@
-import { useEffect } from "react"
+import { useEffect, useMemo } from "react"
 import { useNavigate, useLocation } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
 
@@ -7,24 +7,40 @@ function AutoRedirect({ children }) {
   const navigate = useNavigate()
   const location = useLocation()
 
+  // 🔹 PUBLIC ROUTES (MEMOIZED)
+  const publicPaths = useMemo(() => ([
+    "/login",
+    "/register",
+    "/forgot-password",
+    "/reset-password"
+  ]), [])
+
+  // 🔹 ROLE → DASHBOARD MAP
+  const roleRedirectMap = useMemo(() => ({
+    admin: "/admin-dashboard",
+    agent: "/agent-dashboard",
+    user: "/user-dashboard"
+  }), [])
+
   useEffect(() => {
     if (!user) return
 
-    // Avoid redirect loop
-    const publicPaths = ["/login", "/register"]
+    const currentPath = location.pathname
 
-    if (publicPaths.includes(location.pathname)) return
+    // ✅ Skip public routes
+    if (publicPaths.includes(currentPath)) return
 
-    if (location.pathname === "/") {
-      if (user.role === "admin") {
-        navigate("/admin-dashboard", { replace: true })
-      } else if (user.role === "agent") {
-        navigate("/agent-dashboard", { replace: true })
-      } else {
-        navigate("/user-dashboard", { replace: true })
-      }
+    // ✅ Only redirect from root
+    if (currentPath !== "/") return
+
+    const target = roleRedirectMap[user.role] || "/user-dashboard"
+
+    // ✅ Prevent unnecessary navigation
+    if (currentPath !== target) {
+      navigate(target, { replace: true })
     }
-  }, [user])
+
+  }, [user, location.pathname, navigate, publicPaths, roleRedirectMap])
 
   return children
 }

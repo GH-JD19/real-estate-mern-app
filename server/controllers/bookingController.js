@@ -1,5 +1,14 @@
+const mongoose = require("mongoose")
 const Booking = require("../models/Booking")
 const Property = require("../models/Property")
+
+// ============================
+// HELPERS
+// ============================
+const isValidId = (id) => mongoose.Types.ObjectId.isValid(id)
+
+const ALLOWED_STATUS = ["PENDING", "APPROVED", "REJECTED"]
+
 
 // ============================
 // USER: CREATE BOOKING
@@ -9,7 +18,20 @@ exports.createBooking = async (req, res) => {
 
     const { propertyId, date } = req.body
 
-    // Check property exists
+    if (!isValidId(propertyId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid property ID"
+      })
+    }
+
+    if (!date || new Date(date) < new Date()) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid booking date"
+      })
+    }
+
     const property = await Property.findById(propertyId)
 
     if (!property) {
@@ -19,7 +41,6 @@ exports.createBooking = async (req, res) => {
       })
     }
 
-    // Prevent duplicate booking
     const existing = await Booking.findOne({
       user: req.user._id,
       property: propertyId,
@@ -37,7 +58,7 @@ exports.createBooking = async (req, res) => {
       user: req.user._id,
       property: propertyId,
       agent: property.createdBy,
-      date,
+      date: new Date(date),
       status: "PENDING"
     })
 
@@ -47,26 +68,26 @@ exports.createBooking = async (req, res) => {
       booking
     })
 
-    global.io.to("admin-room").emit("dashboard:update", {
-      type: "BOOKING_CREATED",
-      message: "New booking request",
-      time: new Date()
-    })
+    // ✅ SAFE SOCKET EMIT
+    if (global.io) {
+      global.io.to("admin-room").emit("dashboard:update", {
+        type: "BOOKING_CREATED",
+        message: "New booking request",
+        time: new Date()
+      })
 
-    // ✅ NOTIFY AGENT
-    global.io.to("agent-room").emit("agent:update", {
-      type: "BOOKING_CREATED",
-      message: "New booking received",
-      time: new Date()
-    })
+      global.io.to("agent-room").emit("agent:update", {
+        type: "BOOKING_CREATED",
+        message: "New booking received",
+        time: new Date()
+      })
+    }
 
-  } catch (error) {
-
+  } catch {
     res.status(500).json({
       success: false,
-      message: error.message
+      message: "Server error"
     })
-
   }
 }
 
@@ -88,47 +109,38 @@ exports.getUserBookings = async (req, res) => {
       bookings
     })
 
-  } catch (error) {
-
+  } catch {
     res.status(500).json({
       success: false,
-      message: error.message
+      message: "Server error"
     })
-
   }
 }
 
 
 // ============================
-// AGENT: GET BOOKINGS
+// AGENT: GET BOOKINGS (OPTIMIZED)
 // ============================
 exports.getAgentBookings = async (req, res) => {
   try {
 
-    const bookings = await Booking.find()
+    const bookings = await Booking.find({
+      agent: req.user._id
+    })
       .populate("user", "name email")
-      .populate({
-        path: "property",
-        match: { createdBy: req.user._id },
-        select: "title city price"
-      })
+      .populate("property", "title city price")
       .sort({ createdAt: -1 })
-
-    // Remove bookings where property doesn't belong to agent
-    const filtered = bookings.filter(b => b.property)
 
     res.json({
       success: true,
-      bookings: filtered
+      bookings
     })
 
-  } catch (error) {
-
+  } catch {
     res.status(500).json({
       success: false,
-      message: error.message
+      message: "Server error"
     })
-
   }
 }
 
@@ -139,10 +151,24 @@ exports.getAgentBookings = async (req, res) => {
 exports.updateBookingStatus = async (req, res) => {
   try {
 
+    const { id } = req.params
     const { status } = req.body
 
-    const booking = await Booking.findById(req.params.id)
-      .populate("property")
+    if (!isValidId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid booking ID"
+      })
+    }
+
+    if (!status || !ALLOWED_STATUS.includes(status.toUpperCase())) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid status"
+      })
+    }
+
+    const booking = await Booking.findById(id).populate("property")
 
     if (!booking) {
       return res.status(404).json({
@@ -151,7 +177,6 @@ exports.updateBookingStatus = async (req, res) => {
       })
     }
 
-    // Security: Only property owner agent can update
     if (booking.property.createdBy.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         success: false,
@@ -168,18 +193,18 @@ exports.updateBookingStatus = async (req, res) => {
       booking
     })
 
-    global.io.to("admin-room").emit("dashboard:update", {
-      type: "BOOKING_UPDATED",
-      message: `Booking ${status}`,
-      time: new Date()
-    })
+    if (global.io) {
+      global.io.to("admin-room").emit("dashboard:update", {
+        type: "BOOKING_UPDATED",
+        message: `Booking ${booking.status}`,
+        time: new Date()
+      })
+    }
 
-  } catch (error) {
-
+  } catch {
     res.status(500).json({
       success: false,
-      message: error.message
+      message: "Server error"
     })
-
   }
 }

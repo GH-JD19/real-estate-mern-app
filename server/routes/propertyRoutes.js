@@ -3,7 +3,9 @@ const router = express.Router()
 
 const protect = require("../middleware/authMiddleware")
 const authorize = require("../middleware/roleMiddleware")
-const upload = require("../middleware/uploadMiddleware")
+const { handleUpload } = require("../middleware/uploadMiddleware")
+
+const { propertyValidation } = require("../validators/property.validator")
 
 const {
   createProperty,
@@ -20,34 +22,83 @@ const {
   toggleFeatured
 } = require("../controllers/propertyController")
 
+const rateLimit = require("express-rate-limit")
+const mongoose = require("mongoose")
+
+// ============================
+// RATE LIMITERS
+// ============================
+
+// Public limiter (listing & viewing)
+const publicLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  message: "Too many requests, please try again later"
+})
+
+// Protected actions limiter (create/update/delete)
+const actionLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 40,
+  message: "Too many actions, please try again later"
+})
+
+// ============================
+// HELPERS
+// ============================
+
+// Validate ObjectId
+const validateObjectId = (req, res, next) => {
+  const { id } = req.params
+
+  if (id && !mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid ID format"
+    })
+  }
+
+  next()
+}
+
+// Async wrapper
+const asyncHandler = (fn) => (req, res, next) => {
+  Promise.resolve(fn(req, res, next)).catch(next)
+}
+
 // ============================
 // PUBLIC ROUTES
 // ============================
 
-// Featured
-router.get("/featured", getFeaturedProperties)
+router.get("/featured", publicLimiter, asyncHandler(getFeaturedProperties))
 
-// ⭐ MUST COME BEFORE :id
+// MUST come before :id
 router.get(
   "/my",
   protect,
   authorize("user", "agent"),
-  getMyProperties
+  actionLimiter,
+  asyncHandler(getMyProperties)
 )
 
-// ⭐ Agent Listings
 router.get(
   "/agent",
   protect,
   authorize("agent"),
-  getAgentProperties
+  actionLimiter,
+  asyncHandler(getAgentProperties)
 )
 
 // All properties
-router.get("/", getProperties)
+router.get("/", publicLimiter, asyncHandler(getProperties))
 
 // Single property
-router.get("/:id", getSingleProperty)
+router.get(
+  "/:id",
+  publicLimiter,
+  validateObjectId,
+  asyncHandler(getSingleProperty)
+)
 
 
 // ============================
@@ -57,67 +108,70 @@ router.get("/:id", getSingleProperty)
 router.post(
   "/",
   protect,
-  authorize("AGENT", "ADMIN"),
-  (req, res, next) => {
-    upload.array("images", 10)(req, res, function (err) {
-      if (err) {
-        console.log("MULTER ERROR 👉", err)
-        return res.status(500).json({ message: err.message })
-      }
-      next()
-    })
-  },
-  createProperty
+  authorize("agent", "admin"),
+  actionLimiter,
+  propertyValidation,
+  handleUpload("images", 5),
+  asyncHandler(createProperty)
 )
 
-router.post(
-  "/",
+router.put(
+  "/:id",
   protect,
   authorize("agent", "admin"),
-  createProperty
+  actionLimiter,
+  validateObjectId,
+  propertyValidation,
+  asyncHandler(updateProperty)
 )
 
 router.delete(
   "/:id",
   protect,
   authorize("agent", "admin"),
-  deleteProperty
+  actionLimiter,
+  validateObjectId,
+  asyncHandler(deleteProperty)
 )
-
-//router.get("/", getProperties)
-//router.get("/:id", getSingleProperty)
 
 
 // ============================
-// ADMIN DASHBOARD ROUTES
+// ADMIN ROUTES
 // ============================
 
 router.get(
   "/admin/all",
   protect,
   authorize("admin"),
-  adminGetAllProperties
+  actionLimiter,
+  asyncHandler(adminGetAllProperties)
 )
 
 router.delete(
   "/admin/:id",
   protect,
   authorize("admin"),
-  adminDeleteProperty
+  actionLimiter,
+  validateObjectId,
+  asyncHandler(adminDeleteProperty)
 )
 
 router.put(
   "/admin/status/:id",
   protect,
   authorize("admin"),
-  adminUpdatePropertyStatus
+  actionLimiter,
+  validateObjectId,
+  asyncHandler(adminUpdatePropertyStatus)
 )
 
 router.put(
   "/admin/feature/:id",
   protect,
   authorize("admin"),
-  toggleFeatured
+  actionLimiter,
+  validateObjectId,
+  asyncHandler(toggleFeatured)
 )
 
 module.exports = router

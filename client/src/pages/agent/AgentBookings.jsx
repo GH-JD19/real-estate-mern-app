@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import api from "../../services/api"
 import { toast } from "react-toastify"
 import { io } from "socket.io-client"
@@ -9,49 +9,36 @@ import { saveAs } from "file-saver"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
 
+const SOCKET_URL = import.meta.env.VITE_API_URL || "http://localhost:5000"
+
 const AgentBookings = () => {
 
   const [bookings, setBookings] = useState([])
   const [filteredBookings, setFilteredBookings] = useState([])
 
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
 
-  // Filters
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("ALL")
   const [dateFilter, setDateFilter] = useState("")
 
-  // Pagination (SERVER SIDE ✅)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
 
-  // ================= FETCH =================
-  const fetchBookings = async (page = 1) => {
-    try {
-      setLoading(true)
+  const [exporting, setExporting] = useState(false)
+  const [updatingId, setUpdatingId] = useState(null)
 
-      const res = await api.get(`/visits/agent?page=${page}&limit=5`)
+  const socketRef = useRef(null)
+  const abortRef = useRef(null)
+  const latestRequest = useRef(0)
+  const debounceRef = useRef(null)
 
-      setBookings(res.data.visits || [])
-      setCurrentPage(res.data.currentPage)
-      setTotalPages(res.data.totalPages)
-
-    } catch (err) {
-      console.log("Agent bookings fetch error", err)
-      toast.error("Failed to fetch bookings")
-      setBookings([])
-    } finally {
-      setLoading(false)
-    }
-  }
-
+  // ================= SOCKET =================
   useEffect(() => {
-    fetchBookings(currentPage)
-  }, [currentPage])
+    const socket = io(SOCKET_URL, { withCredentials: true })
 
-  // ================= SOCKET.IO =================
-  useEffect(() => {
-    const socket = io("http://localhost:5000")
+    socketRef.current = socket
 
     socket.emit("joinAgent")
 
@@ -59,135 +46,157 @@ const AgentBookings = () => {
       fetchBookings(currentPage)
     })
 
-    return () => socket.disconnect()
+    return () => {
+      socket.off("visitUpdated")
+      socket.disconnect()
+    }
+  }, [])
+
+  // ================= FETCH =================
+  const fetchBookings = async (page = 1, searchValue = search) => {
+
+    if (abortRef.current) abortRef.current.abort()
+
+    const controller = new AbortController()
+    abortRef.current = controller
+
+    const requestId = Date.now()
+    latestRequest.current = requestId
+
+    try {
+      setLoading(true)
+      setError("")
+
+      const res = await api.get(`/visits/agent`, {
+        params: {
+          page,
+          limit: 5,
+          search: searchValue,
+          status: statusFilter,
+          date: dateFilter
+        },
+        signal: controller.signal,
+        timeout: 10000
+      })
+
+      if (latestRequest.current !== requestId) return
+
+      setBookings(res.data.visits || [])
+      setFilteredBookings(res.data.visits || [])
+      setCurrentPage(res.data.currentPage)
+      setTotalPages(res.data.totalPages)
+
+    } catch (err) {
+      if (err.name === "CanceledError") return
+
+      if (latestRequest.current !== requestId) return
+
+      toast.error(err?.response?.data?.message || "Failed to fetch bookings")
+      setError("Failed to fetch bookings")
+      setBookings([])
+      setFilteredBookings([])
+
+    } finally {
+      if (latestRequest.current === requestId) {
+        setLoading(false)
+      }
+    }
+  }
+
+  // ================= DEBOUNCED SEARCH =================
+  useEffect(() => {
+    clearTimeout(debounceRef.current)
+
+    debounceRef.current = setTimeout(() => {
+      fetchBookings(1)
+    }, 400)
+
+    return () => clearTimeout(debounceRef.current)
+  }, [search, statusFilter, dateFilter])
+
+  useEffect(() => {
+    fetchBookings(currentPage)
   }, [currentPage])
 
-  // ================= UPDATE =================
-  const updateStatus = async (id, status) => {
+  // ================= EXPORT =================
+  const fetchAllData = async () => {
+    try {
+      const res = await api.get(`/visits/agent`, {
+        params: {
+          limit: 1000,
+          search,
+          status: statusFilter,
+          date: dateFilter
+        }
+      })
+      return res.data.visits || []
+    } catch {
+      toast.error("Export failed")
+      return []
+    }
+  }
 
+  const formatData = (data) =>
+    data.map(b => ({
+      User: b.user?.name || "N/A",
+      Property: b.property?.title || "N/A",
+      Date: b.visitDate ? new Date(b.visitDate).toLocaleDateString() : "N/A",
+      Status: b.status
+    }))
+
+  const exportHandler = async (type) => {
+    setExporting(true)
+
+    const data = formatData(await fetchAllData())
+    if (!data.length) {
+      setExporting(false)
+      return
+    }
+
+    if (type === "csv") {
+      const csv = Papa.unparse(data)
+      saveAs(new Blob([csv]), "visits.csv")
+    }
+
+    if (type === "excel") {
+      const ws = XLSX.utils.json_to_sheet(data)
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, "Visits")
+      XLSX.writeFile(wb, "visits.xlsx")
+    }
+
+    if (type === "pdf") {
+      const doc = new jsPDF()
+      autoTable(doc, {
+        head: [["User", "Property", "Date", "Status"]],
+        body: data.map(item => Object.values(item))
+      })
+      doc.save("visits.pdf")
+    }
+
+    setExporting(false)
+  }
+
+  // ================= STATUS UPDATE =================
+  const updateStatus = async (id, status) => {
     if (!window.confirm("Are you sure?")) return
 
     try {
+      setUpdatingId(id)
 
       await api.patch(`/visits/${id}`, { status })
 
       toast.success(`Visit ${status.toLowerCase()} successfully`)
 
-      // no manual fetch needed (socket handles it)
+      fetchBookings(currentPage)
 
-    } catch (err) {
-
-      console.log("Status update failed", err)
+    } catch {
       toast.error("Status update failed")
-
+    } finally {
+      setUpdatingId(null)
     }
-
   }
 
-  // ================= FILTER =================
-  const applyFilters = () => {
-
-    let data = [...bookings]
-
-    if (search) {
-      data = data.filter(b =>
-        b.user?.name?.toLowerCase().includes(search.toLowerCase()) ||
-        b.property?.title?.toLowerCase().includes(search.toLowerCase())
-      )
-    }
-
-    if (statusFilter !== "ALL") {
-      data = data.filter(b => b.status === statusFilter)
-    }
-
-    if (dateFilter) {
-      data = data.filter(b =>
-        new Date(b.visitDate).toDateString() === new Date(dateFilter).toDateString()
-      )
-    }
-
-    setFilteredBookings(data)
-
-  }
-
-  useEffect(() => {
-    applyFilters()
-  }, [search, statusFilter, dateFilter, bookings])
-
-  // ================= CSV EXPORT =================
-  const exportCSV = () => {
-
-    const data = filteredBookings.map(b => ({
-      User: b.user?.name,
-      Property: b.property?.title,
-      Date: new Date(b.visitDate).toLocaleDateString(),
-      Status: b.status
-    }))
-
-    const csv = Papa.unparse(data)
-
-    const blob = new Blob([csv], { type: "text/csv" })
-    const url = URL.createObjectURL(blob)
-
-    const a = document.createElement("a")
-    a.href = url
-    a.download = "visits.csv"
-    a.click()
-  }
-
-  // ================= EXCEL EXPORT =================
-  const exportExcel = () => {
-
-    const data = filteredBookings.map(b => ({
-      User: b.user?.name,
-      Property: b.property?.title,
-      Date: new Date(b.visitDate).toLocaleDateString(),
-      Status: b.status
-    }))
-
-    const worksheet = XLSX.utils.json_to_sheet(data)
-    const workbook = XLSX.utils.book_new()
-
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Visits")
-
-    const excelBuffer = XLSX.write(workbook, {
-      bookType: "xlsx",
-      type: "array"
-    })
-
-    const blob = new Blob([excelBuffer], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    })
-
-    saveAs(blob, "visits.xlsx")
-  }
-
-  // ================= PDF EXPORT =================
-  const exportPDF = () => {
-
-    const doc = new jsPDF()
-
-    const tableColumn = ["User", "Property", "Date", "Status"]
-
-    const tableRows = filteredBookings.map(b => ([
-      b.user?.name,
-      b.property?.title,
-      new Date(b.visitDate).toLocaleDateString(),
-      b.status
-    ]))
-
-    doc.text("Visit Requests", 14, 15)
-
-    autoTable(doc, {
-      head: [tableColumn],
-      body: tableRows,
-      startY: 20
-    })
-
-    doc.save("visits.pdf")
-  }
-
-  // ================= STATUS UI =================
   const getStatusBadge = (status) => {
     switch (status) {
       case "APPROVED":
@@ -201,6 +210,12 @@ const AgentBookings = () => {
 
   return (
     <div className="p-4 md:p-6">
+
+      {error && (
+        <div className="bg-red-100 text-red-600 p-3 mb-4 rounded text-center">
+          {error}
+        </div>
+      )}
 
       {/* Header */}
       <div className="mb-6 flex justify-between items-center">
@@ -216,24 +231,21 @@ const AgentBookings = () => {
 
         <div className="flex gap-2">
 
-          <button
-            onClick={exportCSV}
-            className="flex items-center gap-1 bg-blue-600 text-white px-4 py-2 rounded-lg"
-          >
+          <button onClick={() => exportHandler("csv")}
+            disabled={exporting}
+            className="flex items-center gap-1 bg-blue-600 text-white px-4 py-2 rounded-lg disabled:opacity-50">
             <Download size={16}/> CSV
           </button>
 
-          <button
-            onClick={exportExcel}
-            className="flex items-center gap-1 bg-green-600 text-white px-4 py-2 rounded-lg"
-          >
+          <button onClick={() => exportHandler("excel")}
+            disabled={exporting}
+            className="flex items-center gap-1 bg-green-600 text-white px-4 py-2 rounded-lg disabled:opacity-50">
             <Download size={16}/> Excel
           </button>
 
-          <button
-            onClick={exportPDF}
-            className="flex items-center gap-1 bg-red-600 text-white px-4 py-2 rounded-lg"
-          >
+          <button onClick={() => exportHandler("pdf")}
+            disabled={exporting}
+            className="flex items-center gap-1 bg-red-600 text-white px-4 py-2 rounded-lg disabled:opacity-50">
             <Download size={16}/> PDF
           </button>
 
@@ -274,15 +286,11 @@ const AgentBookings = () => {
 
       {/* Content */}
       {loading ? (
-
         <div className="text-center py-10 text-gray-500">Loading...</div>
-
       ) : filteredBookings.length === 0 ? (
-
         <div className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow text-center border dark:border-gray-700">
           No matching visit requests found
         </div>
-
       ) : (
 
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow border dark:border-gray-700 overflow-hidden">
@@ -306,12 +314,10 @@ const AgentBookings = () => {
 
                   <tr key={b._id} className="border-t hover:bg-gray-50 dark:hover:bg-gray-700">
 
-                    <td className="p-4">{b.user?.name}</td>
-
-                    <td className="p-4">{b.property?.title}</td>
-
+                    <td className="p-4">{b.user?.name || "N/A"}</td>
+                    <td className="p-4">{b.property?.title || "N/A"}</td>
                     <td className="p-4">
-                      {new Date(b.visitDate).toLocaleDateString()}
+                      {b.visitDate ? new Date(b.visitDate).toLocaleDateString() : "N/A"}
                     </td>
 
                     <td className="p-4 text-center">
@@ -321,15 +327,17 @@ const AgentBookings = () => {
                         <div className="flex flex-col sm:flex-row gap-2 justify-center">
 
                           <button
+                            disabled={updatingId === b._id}
                             onClick={() => updateStatus(b._id, "APPROVED")}
-                            className="bg-green-500 hover:bg-green-600 text-white px-4 py-1.5 rounded"
+                            className="bg-green-500 hover:bg-green-600 text-white px-4 py-1.5 rounded disabled:opacity-50"
                           >
                             Approve
                           </button>
 
                           <button
+                            disabled={updatingId === b._id}
                             onClick={() => updateStatus(b._id, "REJECTED")}
-                            className="bg-red-500 hover:bg-red-600 text-white px-4 py-1.5 rounded"
+                            className="bg-red-500 hover:bg-red-600 text-white px-4 py-1.5 rounded disabled:opacity-50"
                           >
                             Reject
                           </button>

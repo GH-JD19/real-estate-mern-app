@@ -2,78 +2,98 @@ const User = require("../models/User")
 const Property = require("../models/Property")
 const Visit = require("../models/Visit")
 
-// 🔥 Simple in-memory cache (optional but useful)
+// ============================
+// 🔥 SAFE IN-MEMORY CACHE
+// ============================
 const cache = {}
 const CACHE_TTL = 30 * 1000 // 30 sec
 
+// Auto cleanup to prevent memory leak
+setInterval(() => {
+  const now = Date.now()
+  for (const key in cache) {
+    if (now - cache[key].time > CACHE_TTL) {
+      delete cache[key]
+    }
+  }
+}, CACHE_TTL)
+
+
 // ============================
-// DASHBOARD STATS
+// DASHBOARD STATS (OPTIMIZED)
 // ============================
 exports.getDashboardStats = async (req, res) => {
   try {
 
-    const totalUsers = await User.countDocuments({
-      role: "user",
-      isActive: true,
-      isBlocked: false
-    })
-
-    const totalAgents = await User.countDocuments({
-      role: "agent",
-      isActive: true,
-      isBlocked: false
-    })
-
-    const totalAdmins = await User.countDocuments({
-      role: "admin"
-    })
-
-    const totalProperties = await Property.countDocuments({
-      status: "APPROVED"
-    })
-
-    const pendingProperties = await Property.countDocuments({
-      status: { $regex: /^pending$/i }
-    })
-
-    const blockedUsers = await User.countDocuments({
-      isBlocked: true
-    })
-
-    const totalBookings = await Visit.countDocuments()
-
     const startOfMonth = new Date()
     startOfMonth.setDate(1)
-    startOfMonth.setHours(0,0,0,0)
+    startOfMonth.setHours(0, 0, 0, 0)
 
-    const propertiesThisMonth = await Property.countDocuments({
-      status: "APPROVED",
-      createdAt: { $gte: startOfMonth }
-    })
+    const [
+      totalUsers,
+      totalAgents,
+      totalAdmins,
+      totalProperties,
+      pendingProperties,
+      blockedUsers,
+      totalBookings,
+      propertiesThisMonth,
+      propertyTypeStats,
+      latestUsers,
+      latestProperties
+    ] = await Promise.all([
 
-    const propertyTypeStats = await Property.aggregate([
-      { $match: { status: "APPROVED" } },
-      {
-        $group: {
-          _id: "$type",
-          count: { $sum: 1 }
+      User.countDocuments({
+        role: "user",
+        isActive: true,
+        isBlocked: false
+      }),
+
+      User.countDocuments({
+        role: "agent",
+        isActive: true,
+        isBlocked: false
+      }),
+
+      User.countDocuments({ role: "admin" }),
+
+      Property.countDocuments({ status: "APPROVED" }),
+
+      // ✅ FIXED (NO REGEX)
+      Property.countDocuments({ status: "PENDING" }),
+
+      User.countDocuments({ isBlocked: true }),
+
+      Visit.countDocuments(),
+
+      Property.countDocuments({
+        status: "APPROVED",
+        createdAt: { $gte: startOfMonth }
+      }),
+
+      Property.aggregate([
+        { $match: { status: "APPROVED" } },
+        {
+          $group: {
+            _id: "$type",
+            count: { $sum: 1 }
+          }
         }
-      }
+      ]),
+
+      // ✅ SAFE LIMIT + NO PASSWORD
+      User.find()
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .select("name email role createdAt"),
+
+      Property.find({ status: "APPROVED" })
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .populate("createdBy", "name email")
     ])
 
-    const latestUsers = await User.find()
-      .sort({ createdAt: -1 })
-      .limit(5)
-      .select("-password")
-
-    const latestProperties = await Property.find({
-      status: "APPROVED"
-    })
-      .sort({ createdAt: -1 })
-      .limit(5)
-      .populate("createdBy", "name email")
-
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       stats: {
         totalUsers,
@@ -85,28 +105,40 @@ exports.getDashboardStats = async (req, res) => {
         blockedUsers,
         totalBookings
       },
+      propertyTypeStats,
       latestUsers,
       latestProperties
     })
 
   } catch (error) {
-    res.status(500).json({
-      success:false,
-      message:error.message
+    return res.status(500).json({
+      success: false,
+      message: "Server error"
     })
   }
 }
 
 
 // ============================
-// MONTHLY CHART DATA (FIXED)
+// MONTHLY CHART DATA (FINAL)
 // ============================
 exports.getMonthlyCharts = async (req, res) => {
   try {
 
-    const year = parseInt(req.query.year) || new Date().getFullYear()
-    const from = parseInt(req.query.from) || 0
-    const to = parseInt(req.query.to) || 11
+    // ✅ SAFE QUERY PARSING
+    let year = Number(req.query.year)
+    let from = Number(req.query.from)
+    let to = Number(req.query.to)
+
+    const currentYear = new Date().getFullYear()
+
+    year = Number.isInteger(year) ? year : currentYear
+    from = Number.isInteger(from) && from >= 0 && from <= 11 ? from : 0
+    to = Number.isInteger(to) && to >= 0 && to <= 11 ? to : 11
+
+    if (from > to) {
+      return res.status(400).json({ message: "Invalid month range" })
+    }
 
     const cacheKey = `${year}-${from}-${to}`
 
@@ -117,10 +149,6 @@ exports.getMonthlyCharts = async (req, res) => {
 
     const startDate = new Date(year, from, 1)
     const endDate = new Date(year, to + 1, 0, 23, 59, 59)
-
-    // =====================
-    // AGGREGATIONS (PARALLEL 🚀)
-    // =====================
 
     const [
       users,
@@ -165,10 +193,11 @@ exports.getMonthlyCharts = async (req, res) => {
         { $group: { _id: { $month: "$createdAt" }, count: { $sum: 1 } } }
       ]),
 
+      // ✅ FIXED STATUS
       Property.aggregate([
         {
           $match: {
-            status: { $regex: /^pending$/i },
+            status: "PENDING",
             createdAt: { $gte: startDate, $lte: endDate }
           }
         },
@@ -185,7 +214,6 @@ exports.getMonthlyCharts = async (req, res) => {
         { $group: { _id: { $month: "$createdAt" }, count: { $sum: 1 } } }
       ]),
 
-      // ✅ FIXED BOOKINGS (WITH DATE FILTER)
       Visit.aggregate([
         {
           $match: {
@@ -205,17 +233,17 @@ exports.getMonthlyCharts = async (req, res) => {
           }
         }
       ])
-
     ])
 
     // =====================
     // FORMAT DATA
     // =====================
-
     const buildMonthlyData = (data) => {
       const months = Array(12).fill(0)
       data.forEach(item => {
-        months[item._id - 1] = item.count
+        if (item._id >= 1 && item._id <= 12) {
+          months[item._id - 1] = item.count
+        }
       })
       return months
     }
@@ -240,7 +268,6 @@ exports.getMonthlyCharts = async (req, res) => {
     // =====================
     // TOTALS
     // =====================
-
     const totals = chartData.reduce((acc, cur) => {
       acc.users += cur.users
       acc.agents += cur.agents
@@ -259,13 +286,12 @@ exports.getMonthlyCharts = async (req, res) => {
     // =====================
     // GROWTH
     // =====================
-
     const calcGrowth = (key) => {
       if (chartData.length < 2) return 0
       const first = chartData[0][key]
       const last = chartData[chartData.length - 1][key]
       if (first === 0) return last === 0 ? 0 : 100
-      return (((last - first) / first) * 100).toFixed(1)
+      return Number((((last - first) / first) * 100).toFixed(1))
     }
 
     const growth = {
@@ -276,18 +302,10 @@ exports.getMonthlyCharts = async (req, res) => {
       revenue: calcGrowth("revenue")
     }
 
-    // =====================
-    // CONVERSION
-    // =====================
-
     const conversionRate =
       totals.users === 0
         ? 0
-        : ((totals.bookings / totals.users) * 100).toFixed(1)
-
-    // =====================
-    // INSIGHTS
-    // =====================
+        : Number(((totals.bookings / totals.users) * 100).toFixed(1))
 
     const insights = [
       `Users growth is ${growth.users}%`,
@@ -312,10 +330,11 @@ exports.getMonthlyCharts = async (req, res) => {
       data: response
     }
 
-    res.json(response)
+    return res.json(response)
 
   } catch (error) {
-    console.error(error)
-    res.status(500).json({ message: error.message })
+    return res.status(500).json({
+      message: "Server error"
+    })
   }
 }

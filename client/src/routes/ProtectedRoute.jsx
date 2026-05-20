@@ -1,19 +1,37 @@
-import { Navigate } from "react-router-dom"
+import { Navigate, useLocation } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
 
 function ProtectedRoute({ children, allowedRoles }) {
-  const { user, token } = useAuth()
+  const { user, loading } = useAuth()
+  const location = useLocation()
 
-  // Not logged in
-  if (!token) {
-    return <Navigate to="/login" replace />
+  // 🔹 LOADING STATE (NO BLANK SCREEN BUG)
+  if (loading) {
+    return <div /> // lightweight fallback (can be replaced with global loader)
   }
 
-  // Role not allowed
-  if (allowedRoles && !allowedRoles.includes(user?.role)) {
-    return <Navigate to="/" replace />
+  // 🔹 NOT AUTHENTICATED
+  if (!user) {
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{ from: location }} // preserves intended route
+      />
+    )
   }
 
+  // 🔹 ROLE-BASED ACCESS CONTROL
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
+    return (
+      <Navigate
+        to="/"
+        replace
+      />
+    )
+  }
+
+  // 🔹 AUTHORIZED
   return children
 }
 

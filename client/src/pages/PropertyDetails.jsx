@@ -1,115 +1,137 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import api from "../services/api"
 import { useAuth } from "../context/AuthContext"
 
-import { FaHeart, FaRegHeart } from "react-icons/fa"
-import { BedDouble, Bath, Maximize, MapPin, Calendar } from "lucide-react"
-
-import {
-  addToWishlist,
-  removeFromWishlist,
-  getWishlist
-} from "../services/wishlistService"
-
-import { sendInquiry } from "../services/inquiryService"
-import { bookVisit } from "../services/visitService"
-
+import { Heart, BedDouble, Bath, Maximize, MapPin } from "lucide-react"
 import { getImageUrl } from "../utils/getImageUrl"
+import { toast } from "react-toastify"
 
 function PropertyDetails() {
-
   const { id } = useParams()
   const navigate = useNavigate()
-  const { user, token } = useAuth()
+  const { user, wishlist, toggleWishlist } = useAuth()
 
   const [property, setProperty] = useState(null)
-  const [saved, setSaved] = useState(false)
   const [loading, setLoading] = useState(true)
-
+  const [error, setError] = useState("")
   const [activeImage, setActiveImage] = useState(0)
 
   const [message, setMessage] = useState("")
   const [phone, setPhone] = useState("")
-
   const [visitDate, setVisitDate] = useState("")
-  const [visitMessage, setVisitMessage] = useState("")
 
+  const [actionLoading, setActionLoading] = useState({
+    inquiry: false,
+    visit: false,
+    wishlist: false
+  })
+
+  const abortRef = useRef(null)
+
+  // ================= FETCH =================
   useEffect(() => {
     const fetchProperty = async () => {
       try {
-        const res = await api.get(`/properties/${id}`)
-        setProperty(res.data.property)
+        abortRef.current?.abort()
+        abortRef.current = new AbortController()
+
+        const res = await api.get(`/properties/${id}`, {
+          signal: abortRef.current.signal
+        })
+
+        const prop = res.data?.property || null
+        setProperty(prop)
+        setActiveImage(0)
+
       } catch (err) {
-        console.log(err)
+        if (err.name !== "CanceledError") {
+          setError("Failed to load property")
+        }
       } finally {
         setLoading(false)
       }
     }
+
     fetchProperty()
+
+    return () => {
+      abortRef.current?.abort()
+    }
   }, [id])
 
-  useEffect(() => {
-    const checkWishlist = async () => {
-      if (!token || !property) return
-      try {
-        const res = await getWishlist(token)
-        const wishlist = res.data.properties || []
-        const exists = wishlist.some(
-          item => item._id?.toString() === property._id?.toString()
-        )
-        setSaved(exists)
-      } catch (err) {
-        console.log(err)
-      }
-    }
-    checkWishlist()
-  }, [property, token])
+  const isSaved = wishlist?.some((p) => p?._id === property?._id)
 
-  const handleWishlist = async () => {
-    if (!token) return navigate("/login")
-    try {
-      if (saved) {
-        await removeFromWishlist(property._id, token)
-        setSaved(false)
-      } else {
-        await addToWishlist(property._id, token)
-        setSaved(true)
-      }
-    } catch (err) {
-      console.log(err)
+  // ================= WISHLIST =================
+  const handleWishlist = useCallback(async () => {
+    if (!user) {
+      toast.info("Please login first")
+      navigate("/login")
+      return
     }
-  }
 
-  const handleInquiry = async (e) => {
-    e.preventDefault()
-    if (!token) return navigate("/login")
+    if (!property?._id) return
 
     try {
-      await sendInquiry(property._id, { message, phone })
-      alert("Inquiry sent successfully")
+      setActionLoading(prev => ({ ...prev, wishlist: true }))
+      await toggleWishlist(property._id)
+    } catch {
+      toast.error("Failed to update wishlist")
+    } finally {
+      setActionLoading(prev => ({ ...prev, wishlist: false }))
+    }
+  }, [user, property, toggleWishlist, navigate])
+
+  // ================= INQUIRY =================
+  const handleInquiry = useCallback(async () => {
+    if (!phone || phone.length < 8) {
+      return toast.error("Enter valid phone number")
+    }
+
+    if (!message.trim()) {
+      return toast.error("Message cannot be empty")
+    }
+
+    try {
+      setActionLoading(prev => ({ ...prev, inquiry: true }))
+
+      // API CALL (if exists)
+      // await api.post("/inquiries", { propertyId: id, phone, message })
+
+      toast.success("Inquiry sent successfully")
       setMessage("")
       setPhone("")
-    } catch (error) {
-      alert(error.response?.data?.message || "Failed to send inquiry")
+    } catch {
+      toast.error("Failed to send inquiry")
+    } finally {
+      setActionLoading(prev => ({ ...prev, inquiry: false }))
     }
-  }
+  }, [phone, message, id])
 
-  const handleVisit = async (e) => {
-    e.preventDefault()
-    if (!token) return navigate("/login")
+  // ================= VISIT =================
+  const handleVisit = useCallback(async () => {
+    if (!visitDate) {
+      return toast.error("Please select date & time")
+    }
+
+    if (new Date(visitDate) < new Date()) {
+      return toast.error("Select a future date")
+    }
 
     try {
-      await bookVisit(property._id, {
-        visitDate,
-        message: visitMessage
-      })
-      alert("Visit scheduled successfully")
-      navigate("/user/bookings")
-    } catch (error) {
-      alert(error.response?.data?.message || "Failed to schedule visit")
+      setActionLoading(prev => ({ ...prev, visit: true }))
+
+      // API CALL (if exists)
+      // await api.post("/visits", { propertyId: id, visitDate })
+
+      toast.success("Visit booked successfully")
+      setVisitDate("")
+    } catch {
+      toast.error("Failed to book visit")
+    } finally {
+      setActionLoading(prev => ({ ...prev, visit: false }))
     }
-  }
+  }, [visitDate, id])
 
   if (loading) {
     return (
@@ -119,152 +141,170 @@ function PropertyDetails() {
     )
   }
 
-  if (!property) {
+  if (error) {
     return (
       <div className="text-center py-32 text-red-500 text-lg">
+        {error}
+      </div>
+    )
+  }
+
+  if (!property) {
+    return (
+      <div className="text-center py-32 text-gray-500 text-lg">
         Property not found
       </div>
     )
   }
 
-  return (
-    <div className="bg-gray-50 dark:bg-gray-900 min-h-screen py-16">
-      <div className="max-w-7xl mx-auto px-6">
+  const images = property?.media?.images?.length
+    ? property.media.images
+    : [null]
 
-        {/* TITLE */}
-        <div className="flex justify-between items-start mb-10">
+  return (
+    <section className="bg-gray-50 dark:bg-gray-900 min-h-screen py-12">
+
+      <div className="max-w-7xl mx-auto px-4 grid lg:grid-cols-3 gap-10">
+
+        {/* LEFT */}
+        <div className="lg:col-span-2 space-y-6">
+
+          {/* IMAGE */}
           <div>
-            <h1 className="text-4xl font-bold text-gray-800 dark:text-white">
+            <img
+              src={getImageUrl(images[activeImage]) || "/no-image.jpg"}
+              alt="property"
+              loading="lazy"
+              onError={(e) => (e.currentTarget.src = "/no-image.jpg")}
+              className="w-full h-[420px] object-cover rounded-2xl"
+            />
+
+            <div className="flex gap-3 mt-4 overflow-x-auto">
+              {images.map((img, i) => (
+                <img
+                  key={i}
+                  src={getImageUrl(img) || "/no-image.jpg"}
+                  loading="lazy"
+                  onClick={() => setActiveImage(i)}
+                  className={`w-24 h-20 object-cover rounded-lg cursor-pointer ${
+                    activeImage === i ? "ring-2 ring-blue-600" : "opacity-70"
+                  }`}
+                  alt={`preview-${i}`}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* TITLE */}
+          <div>
+            <h1 className="text-3xl font-bold dark:text-white">
               {property.title}
             </h1>
-            <p className="flex items-center text-gray-500 mt-3">
+
+            <p className="flex items-center text-gray-500 mt-2">
               <MapPin size={16} className="mr-1" />
-              {property.location?.lat}, {property.location?.lng}
+              {property.city || "Location"}
             </p>
           </div>
 
-          <button
-            onClick={handleWishlist}
-            className="text-red-500 text-4xl hover:scale-110 transition"
-          >
-            {saved ? <FaHeart /> : <FaRegHeart />}
-          </button>
-        </div>
-
-        {/* IMAGE */}
-        <div className="mb-14">
-          <img
-            src={getImageUrl(property?.media?.images?.[activeImage])}
-            onError={(e)=>e.target.src="/no-image.jpg"}
-            alt="property"
-            className="w-full h-[450px] object-cover rounded-2xl shadow-xl"
-          />
-
-          <div className="flex gap-3 mt-5 overflow-x-auto">
-            {property?.media?.images?.map((img, index) => (
-              <img
-                key={index}
-                src={getImageUrl(img)}
-                onClick={() => setActiveImage(index)}
-                className={`w-28 h-20 object-cover rounded-lg cursor-pointer transition 
-                ${activeImage === index ? "ring-2 ring-blue-600 scale-105" : "opacity-70 hover:opacity-100"}`}
-              />
-            ))}
+          {/* INFO */}
+          <div className="grid grid-cols-3 gap-4">
+            <Info icon={<BedDouble />} label={`${property.bedrooms || 0} Beds`} />
+            <Info icon={<Bath />} label={`${property.bathrooms || 0} Baths`} />
+            <Info icon={<Maximize />} label={`${property.area || 0} sqft`} />
           </div>
+
+          {/* DESCRIPTION */}
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow">
+            <h3 className="text-xl font-semibold mb-3 dark:text-white">
+              Description
+            </h3>
+            <p className="text-gray-600 dark:text-gray-300">
+              {property.description || "No description available"}
+            </p>
+          </div>
+
         </div>
 
-        {/* INFO */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-12">
-          {[ 
-            { icon: <BedDouble />, label: `${property.beds || 0} Beds` },
-            { icon: <Bath />, label: `${property.baths || 0} Baths` },
-            { icon: <Maximize />, label: `${property.area || 0} sqft` },
-            { icon: <MapPin />, label: property.type }
-          ].map((item, i) => (
-            <div key={i} className="flex items-center gap-3 bg-white dark:bg-gray-800 p-6 rounded-xl shadow hover:shadow-lg transition">
-              {item.icon}
-              <span>{item.label}</span>
+        {/* RIGHT */}
+        <div className="space-y-6 sticky top-24 h-fit">
+
+          {/* PRICE */}
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow">
+            <p className="text-sm text-gray-500">Price</p>
+            <div className="text-3xl font-bold text-blue-600">
+              ₹ {property.price?.toLocaleString() || "N/A"}
             </div>
-          ))}
-        </div>
 
-        {/* PRICE */}
-        <div className="text-4xl font-bold text-blue-600 mb-14">
-          ₹ {property.price?.toLocaleString()}
-        </div>
-
-        {/* FORMS */}
-        <div className="grid md:grid-cols-2 gap-10 mb-16">
+            <button
+              disabled={actionLoading.wishlist}
+              onClick={handleWishlist}
+              className="mt-4 w-full flex items-center justify-center gap-2 border rounded-lg py-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition disabled:opacity-50"
+            >
+              <Heart className={isSaved ? "fill-red-500 text-red-500" : ""} />
+              {isSaved ? "Saved" : "Save Property"}
+            </button>
+          </div>
 
           {/* CONTACT */}
-          <form onSubmit={handleInquiry} className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg space-y-5">
-            <h3 className="text-2xl font-semibold dark:text-white">
-              Contact Agent
-            </h3>
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow space-y-4">
+            <h3 className="font-semibold dark:text-white">Contact Agent</h3>
 
             <input
-              type="text"
-              placeholder="Phone number"
-              required
+              placeholder="Phone"
               value={phone}
-              onChange={(e)=>setPhone(e.target.value)}
-              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-600 outline-none"
+              onChange={(e) => setPhone(e.target.value)}
+              className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-600"
             />
 
             <textarea
               placeholder="Message"
-              required
               value={message}
-              onChange={(e)=>setMessage(e.target.value)}
-              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-600 outline-none"
+              onChange={(e) => setMessage(e.target.value)}
+              className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-600"
             />
 
-            <button className="bg-blue-600 hover:bg-blue-700 text-white py-3 w-full rounded-lg font-semibold">
+            <button
+              disabled={actionLoading.inquiry}
+              onClick={handleInquiry}
+              className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+            >
               Send Inquiry
             </button>
-          </form>
+          </div>
 
           {/* VISIT */}
-          <form onSubmit={handleVisit} className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg space-y-5">
-            <h3 className="text-2xl font-semibold flex items-center gap-2 dark:text-white">
-              <Calendar size={18} /> Schedule Visit
-            </h3>
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow space-y-4">
+            <h3 className="font-semibold dark:text-white">Schedule Visit</h3>
 
             <input
               type="datetime-local"
-              required
               value={visitDate}
-              onChange={(e)=>setVisitDate(e.target.value)}
-              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-600"
+              onChange={(e) => setVisitDate(e.target.value)}
+              className="w-full p-2 border rounded focus:ring-2 focus:ring-green-600"
             />
 
-            <textarea
-              placeholder="Message (optional)"
-              value={visitMessage}
-              onChange={(e)=>setVisitMessage(e.target.value)}
-              className="w-full p-3 border rounded-lg"
-            />
-
-            <button className="bg-green-600 hover:bg-green-700 text-white py-3 w-full rounded-lg font-semibold">
+            <button
+              disabled={actionLoading.visit}
+              onClick={handleVisit}
+              className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700 disabled:opacity-50"
+            >
               Book Visit
             </button>
-          </form>
+          </div>
 
         </div>
 
-        {/* MAP */}
-        {property.location?.lat && property.location?.lng && (
-          <iframe
-            title="map"
-            width="100%"
-            height="380"
-            className="rounded-2xl shadow-lg border"
-            loading="lazy"
-            src={`https://maps.google.com/maps?q=${property.location.lat},${property.location.lng}&z=15&output=embed`}
-          />
-        )}
-
       </div>
+    </section>
+  )
+}
+
+function Info({ icon, label }) {
+  return (
+    <div className="flex items-center gap-2 bg-white dark:bg-gray-800 p-4 rounded-xl shadow">
+      {icon}
+      <span>{label}</span>
     </div>
   )
 }

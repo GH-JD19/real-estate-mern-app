@@ -1,72 +1,150 @@
+import React, { memo, useMemo, useCallback } from "react"
 import PropertyCard from "../components/PropertyCard"
 import { useNavigate } from "react-router-dom"
 
 function PropertyList({
-  data,
-  totalPages,
-  loading,
-  error,
-  currentPage,
-  onPageChange,
+  data = [],
+  totalPages = 1,
+  loading = false,
+  error = null,
+  currentPage = 1,
+  onPageChange = () => {},
 }) {
   const navigate = useNavigate()
 
+  // ✅ Memoized skeleton
   const Skeleton = () => (
-    <div className="animate-pulse h-60 bg-gray-300 dark:bg-gray-700 rounded-2xl"></div>
+    <div
+      role="status"
+      aria-label="Loading property"
+      className="animate-pulse bg-white dark:bg-gray-800 rounded-2xl shadow p-4 space-y-4"
+    >
+      <div className="h-40 bg-gray-300 dark:bg-gray-700 rounded-xl" />
+      <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-3/4" />
+      <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-1/2" />
+      <div className="h-6 bg-gray-300 dark:bg-gray-700 rounded w-1/3" />
+    </div>
   )
 
-  const visiblePages = Array.from(
-    { length: Math.min(5, totalPages) },
-    (_, i) => i + 1
+  // ✅ Memoized visible pages
+  const visiblePages = useMemo(() => {
+    const pages = []
+    const start = Math.max(1, currentPage - 2)
+    const end = Math.min(totalPages, currentPage + 2)
+
+    for (let i = start; i <= end; i++) {
+      pages.push(i)
+    }
+
+    return pages
+  }, [currentPage, totalPages])
+
+  // ✅ Navigation handler
+  const handleNavigate = useCallback(
+    (id) => {
+      if (!id) return
+      navigate(`/property/${id}`)
+    },
+    [navigate]
   )
+
+  // ✅ Pagination handlers
+  const handlePageChange = useCallback(
+    (page) => {
+      if (page < 1 || page > totalPages || page === currentPage) return
+      onPageChange(page)
+    },
+    [onPageChange, currentPage, totalPages]
+  )
+
+  // ✅ Safe data
+  const properties = useMemo(() => {
+    return Array.isArray(data) ? data.filter((p) => p?._id) : []
+  }, [data])
 
   return (
-    <section className="max-w-7xl mx-auto px-4 sm:px-6 py-12 sm:py-20">
+    <section
+      className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-10"
+      aria-labelledby="property-list-heading"
+    >
 
       {/* TITLE */}
-      <h2 className="text-2xl sm:text-3xl font-bold mb-8 sm:mb-12 text-center dark:text-white">
+      <h2
+        id="property-list-heading"
+        className="text-2xl sm:text-3xl font-bold mb-6 sm:mb-8 text-center dark:text-white"
+      >
         Available Properties
       </h2>
 
       {/* ERROR */}
-      {error ? (
-        <p className="text-center text-red-500">{error}</p>
-      ) : loading ? (
+      {error && (
+        <p className="text-center text-red-500 mb-6">
+          {typeof error === "string" ? error : "Something went wrong"}
+        </p>
+      )}
 
-        /* LOADING STATE */
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-          {[...Array(6)].map((_, i) => (
+      {/* LOADING */}
+      {loading ? (
+        <div
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+          aria-live="polite"
+        >
+          {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} />
           ))}
+        </div>
+      ) : properties.length === 0 ? (
+
+        /* EMPTY */
+        <div className="text-center py-16 text-gray-500 dark:text-gray-400">
+          No properties available right now
         </div>
 
       ) : (
         <>
-          {/* PROPERTY GRID */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-            {Array.isArray(data) &&
-              data.map((p) => (
-                <div
-                  key={p._id}
-                  className="transition-transform duration-300 hover:scale-[1.02]"
-                >
-                  <PropertyCard
-                    property={p}
-                    onClick={() => navigate(`/property/${p._id}`)}
-                  />
-                </div>
-              ))}
+          {/* GRID */}
+          <div
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+            role="list"
+          >
+            {properties.map((p) => (
+              <div
+                key={p._id}
+                role="listitem"
+                className="transition-all duration-500 ease-in-out hover:scale-[1.02] opacity-0 animate-fadeIn"
+              >
+                <PropertyCard
+                  property={p}
+                  onClick={() => handleNavigate(p._id)}
+                />
+              </div>
+            ))}
           </div>
 
           {/* PAGINATION */}
           {totalPages > 1 && (
-            <div className="flex justify-center flex-wrap gap-2 sm:gap-3 mt-10 sm:mt-12">
+            <div
+              className="flex justify-center items-center flex-wrap gap-2 mt-12"
+              role="navigation"
+              aria-label="Pagination"
+            >
 
+              {/* PREV */}
+              <button
+                disabled={currentPage === 1}
+                onClick={() => handlePageChange(currentPage - 1)}
+                className="px-3 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 disabled:opacity-50"
+              >
+                Prev
+              </button>
+
+              {/* PAGES */}
               {visiblePages.map((p) => (
                 <button
                   key={p}
-                  onClick={() => onPageChange(p)}
-                  className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-sm sm:text-base font-medium transition ${
+                  onClick={() => handlePageChange(p)}
+                  aria-current={currentPage === p ? "page" : undefined}
+                  className={`px-4 py-2 rounded-lg font-medium transition ${
                     currentPage === p
                       ? "bg-blue-600 text-white shadow-md"
                       : "bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600"
@@ -76,6 +154,15 @@ function PropertyList({
                 </button>
               ))}
 
+              {/* NEXT */}
+              <button
+                disabled={currentPage === totalPages}
+                onClick={() => handlePageChange(currentPage + 1)}
+                className="px-3 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 disabled:opacity-50"
+              >
+                Next
+              </button>
+
             </div>
           )}
         </>
@@ -84,4 +171,4 @@ function PropertyList({
   )
 }
 
-export default PropertyList
+export default memo(PropertyList)

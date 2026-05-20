@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import api from "../../services/api"
 import { toast } from "react-toastify"
 import { useNavigate } from "react-router-dom"
@@ -13,29 +13,76 @@ const AgentAllProperties = () => {
   const [pages, setPages] = useState(1)
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
 
-  useEffect(() => {
-    fetchProperties()
-  }, [page])
+  const abortRef = useRef(null)
+  const latestRequest = useRef(0)
 
-  const fetchProperties = async () => {
+  // ================= FETCH =================
+  const fetchProperties = async (pageNumber = 1) => {
+
+    // cancel previous request
+    if (abortRef.current) {
+      abortRef.current.abort()
+    }
+
+    const controller = new AbortController()
+    abortRef.current = controller
+
+    const requestId = Date.now()
+    latestRequest.current = requestId
+
     try {
       setLoading(true)
+      setError("")
 
-      const res = await api.get(`/properties/my?page=${page}&limit=6`)
+      const res = await api.get(`/properties/my`, {
+        params: { page: pageNumber, limit: 6 },
+        signal: controller.signal,
+        timeout: 10000
+      })
+
+      // prevent stale response override
+      if (latestRequest.current !== requestId) return
 
       setProperties(res.data.properties || [])
       setPages(res.data.pages || 1)
       setTotal(res.data.total || 0)
 
     } catch (err) {
-      toast.error("Failed to load properties")
+
+      if (err.name === "CanceledError") return
+
+      if (latestRequest.current !== requestId) return
+
+      toast.error(err?.response?.data?.message || "Failed to load properties")
+      setError("Failed to load properties")
       setProperties([])
+
     } finally {
-      setLoading(false)
+      if (latestRequest.current === requestId) {
+        setLoading(false)
+      }
     }
   }
 
+  // ================= EFFECT =================
+  useEffect(() => {
+    fetchProperties(page)
+
+    return () => {
+      if (abortRef.current) {
+        abortRef.current.abort()
+      }
+    }
+  }, [page])
+
+  // ================= SCROLL =================
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }, [page])
+
+  // ================= STATUS COLOR =================
   const statusColor = (status) => {
     switch (status) {
       case "APPROVED":
@@ -47,6 +94,30 @@ const AgentAllProperties = () => {
       default:
         return "bg-gray-400"
     }
+  }
+
+  // ================= SAFE FORMAT =================
+  const formatPrice = (price) => {
+    if (!price) return "N/A"
+    return `₹ ${Number(price).toLocaleString()}`
+  }
+
+  // ================= PAGINATION SAFE RANGE =================
+  const getPageNumbers = () => {
+    const maxVisible = 5
+    let start = Math.max(1, page - 2)
+    let end = Math.min(pages, start + maxVisible - 1)
+
+    if (end - start < maxVisible - 1) {
+      start = Math.max(1, end - maxVisible + 1)
+    }
+
+    const range = []
+    for (let i = start; i <= end; i++) {
+      range.push(i)
+    }
+
+    return range
   }
 
   return (
@@ -70,15 +141,25 @@ const AgentAllProperties = () => {
 
       </div>
 
-      {/* Empty State */}
-      {!loading && properties.length === 0 ? (
+      {/* ERROR */}
+      {error && (
+        <div className="bg-red-100 text-red-600 text-center p-3 rounded mb-4">
+          {error}
+        </div>
+      )}
+
+      {/* CONTENT */}
+      {loading ? (
+        <div className="text-center py-10 text-gray-500">
+          Loading properties...
+        </div>
+      ) : properties.length === 0 ? (
         <div className="bg-white dark:bg-gray-800 p-6 text-center rounded-xl shadow-sm">
           <p className="text-gray-500 dark:text-gray-300">
             No Properties Found
           </p>
         </div>
       ) : (
-
         <>
           {/* Grid */}
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -87,7 +168,8 @@ const AgentAllProperties = () => {
 
               <div
                 key={property._id}
-                className="bg-white dark:bg-gray-800 shadow-sm hover:shadow-lg transition rounded-xl overflow-hidden"
+                onClick={() => navigate(`/agent/property/${property._id}`)}
+                className="bg-white dark:bg-gray-800 shadow-sm hover:shadow-lg transition rounded-xl overflow-hidden cursor-pointer"
               >
 
                 {/* Image */}
@@ -95,8 +177,9 @@ const AgentAllProperties = () => {
                   <img
                     src={property.media?.images?.[0] || "/no-image.jpg"}
                     alt={property.title}
+                    loading="lazy"
+                    onError={(e) => (e.target.src = "/no-image.jpg")}
                     className="h-44 sm:h-48 w-full object-cover"
-                    onError={(e) => e.target.src = "/no-image.jpg"}
                   />
 
                   <span
@@ -114,7 +197,7 @@ const AgentAllProperties = () => {
                   </h3>
 
                   <p className="text-blue-600 font-bold text-lg">
-                    ₹ {property.price?.toLocaleString()}
+                    {formatPrice(property.price)}
                   </p>
 
                   <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -129,13 +212,6 @@ const AgentAllProperties = () => {
 
           </div>
 
-          {/* Loading */}
-          {loading && (
-            <div className="text-center mt-6 text-gray-500">
-              Loading properties...
-            </div>
-          )}
-
           {/* Pagination */}
           {pages > 1 && (
             <div className="flex justify-center items-center mt-10 gap-2 flex-wrap">
@@ -148,17 +224,17 @@ const AgentAllProperties = () => {
                 Prev
               </button>
 
-              {[...Array(pages).keys()].map(x => (
+              {getPageNumbers().map(p => (
                 <button
-                  key={x + 1}
-                  onClick={() => setPage(x + 1)}
+                  key={p}
+                  onClick={() => setPage(p)}
                   className={`px-3 sm:px-4 py-2 rounded-md text-sm font-medium transition ${
-                    page === x + 1
+                    page === p
                       ? "bg-blue-600 text-white shadow"
                       : "bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600"
                   }`}
                 >
-                  {x + 1}
+                  {p}
                 </button>
               ))}
 

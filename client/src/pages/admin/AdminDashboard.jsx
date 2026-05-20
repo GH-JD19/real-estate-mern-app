@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import api from "../../services/api";
 import { useNavigate } from "react-router-dom";
-import socket from "../../services/socket";
+import { io } from "socket.io-client";
 
 import {
   ResponsiveContainer,
@@ -21,6 +21,8 @@ import {
   Ban,
   CalendarCheck
 } from "lucide-react";
+
+const SOCKET_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 const months = [
   "Jan","Feb","Mar","Apr","May","Jun",
@@ -50,68 +52,78 @@ const AdminDashboard = () => {
   });
 
   const [chartData, setChartData] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const socketRef = useRef(null);
+  const debounceRef = useRef(null);
+  const abortRef = useRef(null);
 
-  const loadDashboard = async () => {
-    await Promise.all([
-      fetchStats(),
-      fetchCharts()
-    ])
-  }
-
-  loadDashboard()
-
-  // ✅ CONNECT SOCKET
-  socket.connect()
-  socket.emit("joinAdmin")
-
-  // ✅ LISTEN EVENTS
-  socket.on("dashboard:update", (data) => {
-
-    console.log("Realtime:", data)
-
-    // 🔥 SMART UPDATE
-    fetchStats()
-    fetchCharts()
-
-  })
-
-  return () => {
-    socket.off("dashboard:update")
-  }
-
-}, [])
-
-  const fetchStats = async () => {
+  // ================= FETCH =================
+  const fetchDashboard = async () => {
     try {
-      const res = await api.get("/admin-analytics/dashboard");
-      setStats(res.data.stats || {});
-    } catch (err) {
-      console.log("Stats fetch error:", err.response?.data);
-    }
-  };
+      abortRef.current?.abort();
+      abortRef.current = new AbortController();
 
-  const fetchCharts = async () => {
-    try {
-      const res = await api.get("/admin-analytics/charts");
+      const [statsRes, chartsRes] = await Promise.all([
+        api.get("/admin-analytics/dashboard", { signal: abortRef.current.signal }),
+        api.get("/admin-analytics/charts", { signal: abortRef.current.signal })
+      ]);
 
-      const safeData = (res.data.chartData || []).map((item, index) => ({
-        name: months[index],
-        users: item.users || 0,
-        agents: item.agents || 0,
-        properties: item.properties || 0,
-        pending: item.pending || 0,
-        blocked: item.blocked || 0,
-        bookings: item.bookings || 0
+      // SAFE STATS MERGE
+      setStats(prev => ({
+        ...prev,
+        ...(statsRes.data?.stats || {})
       }));
 
-      setChartData(safeData);
+      const safeData = (chartsRes.data?.chartData || []).map((item, index) => ({
+        name: months[index] || "",
+        users: Number(item.users) || 0,
+        agents: Number(item.agents) || 0,
+        properties: Number(item.properties) || 0,
+        pending: Number(item.pending) || 0,
+        blocked: Number(item.blocked) || 0,
+        bookings: Number(item.bookings) || 0
+      }));
+
+      setChartData(Array.isArray(safeData) ? safeData : []);
 
     } catch (err) {
-      console.log("Chart fetch error:", err.response?.data);
+      if (err.name !== "CanceledError") {
+        console.error("Dashboard error:", err);
+      }
+    } finally {
+      setLoading(false);
     }
   };
+
+  // ================= SOCKET =================
+  useEffect(() => {
+
+    fetchDashboard();
+
+    const newSocket = io(SOCKET_URL, { withCredentials: true });
+    socketRef.current = newSocket;
+
+    newSocket.emit("joinAdmin");
+
+    const handleUpdate = () => {
+      clearTimeout(debounceRef.current);
+
+      debounceRef.current = setTimeout(() => {
+        fetchDashboard();
+      }, 500);
+    };
+
+    newSocket.on("dashboard:update", handleUpdate);
+
+    return () => {
+      clearTimeout(debounceRef.current);
+      newSocket.off("dashboard:update", handleUpdate);
+      newSocket.disconnect();
+      abortRef.current?.abort();
+    };
+
+  }, []);
 
   const handleNavigate = (path) => {
     navigate(path);
@@ -119,7 +131,7 @@ const AdminDashboard = () => {
 
   return (
 
-    <div className="min-h-screen bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-900 dark:to-gray-950 p-6">
+    <div className="min-h-screen p-6">
 
       {/* HEADER */}
       <div className="mb-10 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -136,51 +148,33 @@ const AdminDashboard = () => {
       {/* ===== STATS ===== */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-6 mb-12">
 
-        <StatCard
-          icon={<Users size={26}/>}
-          title="Users"
-          value={stats.totalUsers ?? "..."}
-          color="bg-blue-500"
+        <StatCard icon={<Users size={26}/>} title="Users"
+          value={loading ? "..." : stats.totalUsers} color="bg-blue-500"
           onClick={()=>handleNavigate("/admin/users?role=user")}
         />
 
-        <StatCard
-          icon={<UserCheck size={26}/>}
-          title="Agents"
-          value={stats.totalAgents ?? "..."}
-          color="bg-purple-500"
+        <StatCard icon={<UserCheck size={26}/>} title="Agents"
+          value={loading ? "..." : stats.totalAgents} color="bg-purple-500"
           onClick={()=>handleNavigate("/admin/users?role=agent")}
         />
 
-        <StatCard
-          icon={<Home size={26}/>}
-          title="Properties"
-          value={stats.totalProperties ?? "..."}
-          color="bg-green-500"
+        <StatCard icon={<Home size={26}/>} title="Properties"
+          value={loading ? "..." : stats.totalProperties} color="bg-green-500"
           onClick={()=>handleNavigate("/admin/properties")}
         />
 
-        <StatCard
-          icon={<Clock size={26}/>}
-          title="Pending"
-          value={stats.pendingProperties ?? "..."}
-          color="bg-yellow-500"
+        <StatCard icon={<Clock size={26}/>} title="Pending"
+          value={loading ? "..." : stats.pendingProperties} color="bg-yellow-500"
           onClick={()=>handleNavigate("/admin/pending-properties")}
         />
 
-        <StatCard
-          icon={<Ban size={26}/>}
-          title="Blocked"
-          value={stats.blockedUsers ?? "..."}
-          color="bg-red-500"
+        <StatCard icon={<Ban size={26}/>} title="Blocked"
+          value={loading ? "..." : stats.blockedUsers} color="bg-red-500"
           onClick={()=>handleNavigate("/admin/users?blocked=true")}
         />
 
-        <StatCard
-          icon={<CalendarCheck size={26}/>}
-          title="Bookings"
-          value={stats.totalBookings ?? "..."}
-          color="bg-teal-500"
+        <StatCard icon={<CalendarCheck size={26}/>} title="Bookings"
+          value={loading ? "..." : stats.totalBookings} color="bg-teal-500"
           onClick={()=>handleNavigate("/admin/bookings")}
         />
 
@@ -196,16 +190,24 @@ const AdminDashboard = () => {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-
-        <Chart title="User Growth" dataKey="users" data={chartData}/>
-        <Chart title="Agent Growth" dataKey="agents" data={chartData}/>
-        <Chart title="Property Growth" dataKey="properties" data={chartData}/>
-        <Chart title="Pending Approvals" dataKey="pending" data={chartData}/>
-        <Chart title="Blocked Users" dataKey="blocked" data={chartData}/>
-        <Chart title="Bookings" dataKey="bookings" data={chartData}/>
-
-      </div>
+      {loading ? (
+        <div className="text-center py-20 text-gray-400">
+          Loading analytics...
+        </div>
+      ) : chartData.length === 0 ? (
+        <div className="text-center py-20 text-gray-400">
+          No analytics data available
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          <Chart title="User Growth" dataKey="users" data={chartData}/>
+          <Chart title="Agent Growth" dataKey="agents" data={chartData}/>
+          <Chart title="Property Growth" dataKey="properties" data={chartData}/>
+          <Chart title="Pending Approvals" dataKey="pending" data={chartData}/>
+          <Chart title="Blocked Users" dataKey="blocked" data={chartData}/>
+          <Chart title="Bookings" dataKey="bookings" data={chartData}/>
+        </div>
+      )}
 
     </div>
   );
@@ -258,9 +260,7 @@ const Chart = ({title,dataKey,data}) => (
     </div>
 
     <ResponsiveContainer width="100%" height={260}>
-
-      <BarChart data={data}>
-
+      <BarChart data={Array.isArray(data) ? data : []}>
         <CartesianGrid strokeDasharray="3 3" />
 
         <XAxis
@@ -286,9 +286,7 @@ const Chart = ({title,dataKey,data}) => (
           fill={chartColors[dataKey]}
           radius={[8,8,0,0]}
         />
-
       </BarChart>
-
     </ResponsiveContainer>
 
   </div>

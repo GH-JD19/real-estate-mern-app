@@ -6,11 +6,11 @@ const helmet = require("helmet")
 const morgan = require("morgan")
 const path = require("path")
 const rateLimit = require("express-rate-limit")
-
+const compression = require("compression")
 const http = require("http")
-const { Server } = require("socket.io")
 
 const connectDB = require("./config/db")
+const { initSocket } = require("./socket")
 
 // Routes
 const homeRoutes = require("./routes/homeRoutes")
@@ -26,38 +26,107 @@ const bookingRoutes = require("./routes/bookingRoutes")
 const visitRoutes = require("./routes/visitRoutes")
 const subscriberRoutes = require("./routes/subscriberRoutes")
 const notificationRoutes = require("./routes/notificationRoutes")
+const messageRoutes = require("./routes/messageRoutes");
 
 const { notFound, errorHandler } = require("./middleware/errorMiddleware")
 
-connectDB()
-
-const app = express()
-
 // ============================
-// Middleware
+// ✅ STRONG ENV VALIDATION
 // ============================
-app.use(express.json())
+const requiredEnv = ["CLIENT_URL", "MONGO_URI", "JWT_SECRET"]
 
-app.use(cors({
-  origin: process.env.CLIENT_URL || "http://localhost:5173",
-  credentials: true
-}))
-
-app.use(helmet())
-app.use(morgan("dev"))
-
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  message: "Too many requests, please try again later."
+requiredEnv.forEach((key) => {
+  if (!process.env[key]) {
+    console.error(`❌ Missing ENV: ${key}`)
+    process.exit(1)
+  }
 })
 
-app.use(limiter)
-
-app.use("/uploads", express.static(path.join(__dirname, "uploads")))
+// ============================
+// INIT APP
+// ============================
+const app = express()
+app.disable("x-powered-by")
+app.set("trust proxy", 1)
 
 // ============================
-// Routes
+// SECURITY
+// ============================
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  process.env.CLIENT_URL_2,
+].filter(Boolean)
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true)
+      if (allowedOrigins.includes(origin)) return callback(null, true)
+
+      console.warn("⚠️ Blocked by CORS:", origin)
+      return callback(null, false) // safer than throwing error
+    },
+    credentials: true,
+  })
+)
+
+app.use(
+  helmet({
+    crossOriginResourcePolicy: false,
+  })
+)
+
+app.use(compression())
+
+// ============================
+// BODY PARSER
+// ============================
+app.use(express.json({ limit: "10kb" }))
+app.use(express.urlencoded({ extended: true, limit: "10kb" }))
+
+// ============================
+// LOGGING
+// ============================
+if (process.env.NODE_ENV === "development") {
+  app.use(morgan("dev"))
+}
+
+// ============================
+// RATE LIMIT
+// ============================
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200, // increased
+  standardHeaders: true,
+  legacyHeaders: false,
+})
+
+app.use("/api", limiter)
+
+// ============================
+// STATIC FILES (SAFE)
+// ============================
+app.use(
+  "/uploads",
+  express.static(path.join(__dirname, "uploads"), {
+    maxAge: "1d",
+  })
+)
+
+// ============================
+// HEALTH CHECK
+// ============================
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "Server is healthy ✅",
+    uptime: process.uptime(),
+    timestamp: new Date(),
+  })
+})
+
+// ============================
+// ROUTES
 // ============================
 app.use("/api", homeRoutes)
 app.use("/api/auth", authRoutes)
@@ -71,65 +140,56 @@ app.use("/api/users", userRoutes)
 app.use("/api/bookings", bookingRoutes)
 app.use("/api/visits", visitRoutes)
 app.use("/api/subscribe", subscriberRoutes)
-app.use("/api/v1/subscribe", subscriberRoutes)
 app.use("/api/notifications", notificationRoutes)
+app.use("/api/messages", messageRoutes);
 
 app.get("/", (req, res) => {
-  res.send("Real Estate API is running 🚀")
+  res.send("🚀 Real Estate API is running")
 })
 
 // ============================
-// SOCKET.IO SETUP
-// ============================
-const server = http.createServer(app)
-
-const io = new Server(server, {
-  cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
-    methods: ["GET", "POST"],
-    credentials: true
-  }
-})
-
-global.io = io
-
-io.on("connection", (socket) => {
-  console.log("🟢 Connected:", socket.id)
-
-  // ✅ ADMIN
-  socket.on("joinAdmin", () => {
-    socket.join("admin-room")
-    console.log("👑 Admin joined")
-  })
-
-  // ✅ AGENT
-  socket.on("joinAgent", () => {
-    socket.join("agent-room")
-    console.log("🏢 Agent joined")
-  })
-
-  // ✅ USER (IMPORTANT)
-  socket.on("joinUser", (userId) => {
-    socket.join(`user-${userId}`)
-    console.log("👤 User joined:", userId)
-  })
-
-  socket.on("disconnect", () => {
-    console.log("🔴 Disconnected:", socket.id)
-  })
-})
-
-// ============================
-// Error
+// ERROR HANDLING
 // ============================
 app.use(notFound)
 app.use(errorHandler)
 
 // ============================
-// Start Server
+// START SERVER (SAFE DB START)
 // ============================
 const PORT = process.env.PORT || 5000
 
-server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`)
+const startServer = async () => {
+  try {
+    await connectDB()
+
+    const server = http.createServer(app)
+    initSocket(server)
+
+    server.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`)
+    })
+
+    // Graceful shutdown
+    process.on("SIGINT", () => process.exit(0))
+    process.on("SIGTERM", () => process.exit(0))
+
+  } catch (err) {
+    console.error("❌ Failed to start server:", err)
+    process.exit(1)
+  }
+}
+
+startServer()
+
+// ============================
+// GLOBAL ERROR HANDLING
+// ============================
+process.on("uncaughtException", (err) => {
+  console.error("💥 Uncaught Exception:", err)
+  process.exit(1)
+})
+
+process.on("unhandledRejection", (err) => {
+  console.error("💥 Unhandled Rejection:", err)
+  process.exit(1)
 })

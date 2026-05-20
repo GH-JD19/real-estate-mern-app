@@ -12,19 +12,90 @@ const {
   getAllVisits
 } = require("../controllers/visitController")
 
-// book visit
-router.post("/:propertyId", protect, bookVisit)
+const rateLimit = require("express-rate-limit")
+const mongoose = require("mongoose")
 
-// user visits
-router.get("/user", protect, authorize("user"), getUserVisits)
+// ============================
+// RATE LIMITER
+// ============================
 
-// agent visits
-router.get("/agent", protect, authorize("agent"), getAgentVisits)
+const visitLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 40,
+  message: "Too many requests, please try again later"
+})
 
-// admin visits (NEW)
-router.get("/admin", protect, authorize("admin"), getAllVisits)
+// ============================
+// HELPERS
+// ============================
 
-// update visit
-router.patch("/:id", protect, authorize("agent"), updateVisitStatus)
+// Validate ObjectId
+const validateObjectId = (param) => (req, res, next) => {
+  const value = req.params[param]
+
+  if (value && !mongoose.Types.ObjectId.isValid(value)) {
+    return res.status(400).json({
+      success: false,
+      message: `Invalid ${param}`
+    })
+  }
+
+  next()
+}
+
+// Async wrapper
+const asyncHandler = (fn) => (req, res, next) => {
+  Promise.resolve(fn(req, res, next)).catch(next)
+}
+
+// ============================
+// ROUTES
+// ============================
+
+// Book visit (user or agent allowed if needed)
+router.post(
+  "/:propertyId",
+  protect,
+  visitLimiter,
+  validateObjectId("propertyId"),
+  asyncHandler(bookVisit)
+)
+
+// User visits
+router.get(
+  "/user",
+  protect,
+  authorize("user"),
+  visitLimiter,
+  asyncHandler(getUserVisits)
+)
+
+// Agent visits
+router.get(
+  "/agent",
+  protect,
+  authorize("agent"),
+  visitLimiter,
+  asyncHandler(getAgentVisits)
+)
+
+// Admin visits
+router.get(
+  "/admin",
+  protect,
+  authorize("admin"),
+  visitLimiter,
+  asyncHandler(getAllVisits)
+)
+
+// Update visit status (agent only)
+router.patch(
+  "/:id",
+  protect,
+  authorize("agent"),
+  visitLimiter,
+  validateObjectId("id"),
+  asyncHandler(updateVisitStatus)
+)
 
 module.exports = router

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import { NavLink, useNavigate } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
 import { useTheme } from "../context/ThemeContext"
@@ -12,6 +12,13 @@ import {
   FaCheckCircle, FaTimesCircle
 } from "react-icons/fa"
 
+// ✅ Role constants
+const ROLES = {
+  ADMIN: "admin",
+  AGENT: "agent",
+  USER: "user"
+}
+
 function Header() {
 
   const { user, logout } = useAuth()
@@ -22,7 +29,6 @@ function Header() {
     notifications,
     unread,
     setUnread,
-    setNotifications,
     markAsRead,
     markAllAsRead
   } = useNotification()
@@ -35,7 +41,7 @@ function Header() {
   const notificationRef = useRef()
 
   // ================= ICON HELPER =================
-  const getNotificationIcon = (type) => {
+  const getNotificationIcon = useCallback((type) => {
     switch (type) {
       case "PROPERTY_CREATED":
         return <FaHome className="text-blue-500" />
@@ -48,29 +54,18 @@ function Header() {
       default:
         return <FaBell />
     }
-  }
+  }, [])
 
   // ================= CLICK HANDLER =================
-  const handleNotificationClick = (n) => {
+  const handleNotificationClick = useCallback((n) => {
 
-    if (n.type === "BOOKING_CREATED") {
-      navigate("/agent/bookings")
-    }
-
-    if (n.type === "PROPERTY_CREATED") {
-      navigate("/admin/pending-properties")
-    }
-
-    if (n.type === "PROPERTY_APPROVED") {
-      navigate("/user-dashboard")
-    }
-
-    if (n.type === "PROPERTY_REJECTED") {
-      navigate("/user-dashboard")
-    }
+    if (n.type === "BOOKING_CREATED") navigate("/agent/bookings")
+    if (n.type === "PROPERTY_CREATED") navigate("/admin/pending-properties")
+    if (n.type === "PROPERTY_APPROVED") navigate("/user-dashboard")
+    if (n.type === "PROPERTY_REJECTED") navigate("/user-dashboard")
 
     setShowNotifications(false)
-  }
+  }, [navigate])
 
   // ================= CLICK OUTSIDE =================
   useEffect(() => {
@@ -97,8 +92,8 @@ function Header() {
   }
 
   const getDashboardLink = () => {
-    if (user?.role === "admin") return "/admin-dashboard"
-    if (user?.role === "agent") return "/agent-dashboard"
+    if (user?.role === ROLES.ADMIN) return "/admin-dashboard"
+    if (user?.role === ROLES.AGENT) return "/agent-dashboard"
     return "/user-dashboard"
   }
 
@@ -108,8 +103,24 @@ function Header() {
   const activeClass =
     "flex items-center gap-2 text-sm font-semibold text-blue-600 dark:text-blue-400"
 
+  // ✅ Reusable NavItem
+  const NavItem = ({ to, icon: Icon, label, onClick }) => (
+    <NavLink
+      to={to}
+      onClick={onClick}
+      className={({ isActive }) =>
+        isActive ? activeClass : linkClass
+      }
+    >
+      <Icon /> {label}
+    </NavLink>
+  )
+
   return (
-    <header className="sticky top-0 z-50 backdrop-blur-md bg-white/70 dark:bg-gray-900/70 shadow-sm border-b border-gray-200 dark:border-gray-700">
+    <header
+      role="banner"
+      className="sticky top-0 z-50 backdrop-blur-md bg-white/70 dark:bg-gray-900/70 shadow-sm border-b border-gray-200 dark:border-gray-700"
+    >
 
       <div className="max-w-7xl mx-auto px-6 py-3 flex justify-between items-center">
 
@@ -126,6 +137,7 @@ function Header() {
 
           {/* THEME */}
           <button
+            aria-label="Toggle Theme"
             onClick={toggleTheme}
             className="p-2 rounded-full bg-gray-100 dark:bg-gray-800 hover:scale-105 transition"
           >
@@ -136,8 +148,9 @@ function Header() {
           {user && (
             <div className="relative" ref={notificationRef}>
               <button
+                aria-label="Notifications"
                 onClick={() => {
-                  setShowNotifications(!showNotifications)
+                  setShowNotifications(prev => !prev)
                   setUnread(0)
                 }}
                 className="relative p-2 rounded-full bg-gray-100 dark:bg-gray-800 hover:scale-105 transition"
@@ -176,7 +189,7 @@ function Header() {
                           handleNotificationClick(n)
                           if (n._id && !n.read) markAsRead(n._id)
                         }}
-                        className={`flex gap-3 px-4 py-3 border-b cursor-pointer
+                        className={`flex gap-3 px-4 py-3 border-b cursor-pointer transition
                         ${!n.read ? "bg-blue-50 dark:bg-gray-700" : ""}`}
                       >
 
@@ -203,92 +216,101 @@ function Header() {
             </div>
           )}
 
+          {/* PUBLIC */}
           {!user && (
             <>
-              <NavLink to="/" className={({isActive}) => isActive ? activeClass : linkClass}><FaHome /> Home</NavLink>
-              <NavLink to="/about" className={({isActive}) => isActive ? activeClass : linkClass}><FaInfoCircle /> About</NavLink>
-              <NavLink to="/terms" className={({isActive}) => isActive ? activeClass : linkClass}><FaFileContract /> Terms</NavLink>
-              <NavLink to="/privacy" className={({isActive}) => isActive ? activeClass : linkClass}><FaShieldAlt /> Privacy</NavLink>
-              <NavLink to="/login" className={({isActive}) => isActive ? activeClass : linkClass}><FaSignInAlt /> Login</NavLink>
-              <NavLink to="/register" className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition shadow-sm flex items-center gap-2"><FaUserPlus /> Register</NavLink>
+              <NavItem to="/" icon={FaHome} label="Home" />
+              <NavItem to="/about" icon={FaInfoCircle} label="About" />
+              <NavItem to="/terms" icon={FaFileContract} label="Terms" />
+              <NavItem to="/privacy" icon={FaShieldAlt} label="Privacy" />
+              <NavItem to="/login" icon={FaSignInAlt} label="Login" />
+
+              <NavLink
+                to="/register"
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition shadow-sm flex items-center gap-2"
+              >
+                <FaUserPlus /> Register
+              </NavLink>
             </>
           )}
 
+          {/* AUTH */}
           {user && (
             <>
-              <NavLink to={getDashboardLink()} className={({isActive}) => isActive ? activeClass : linkClass}>
-                <FaHome /> Dashboard
-              </NavLink>
+              <NavItem to={getDashboardLink()} icon={FaHome} label="Dashboard" />
 
-              {user.role === "admin" && (
+              {user.role === ROLES.ADMIN && (
                 <>
-                  <NavLink to="/admin/properties" className={({isActive}) => isActive ? activeClass : linkClass}>
-                    <FaBuilding /> Properties
-                  </NavLink>
-
-                  <NavLink to="/admin/users" className={({isActive}) => isActive ? activeClass : linkClass}>
-                    <FaUsers /> Users
-                  </NavLink>
-
-                  <NavLink to="/admin/analytics" className={({isActive}) => isActive ? activeClass : linkClass}>
-                    <FaChartLine /> Analytics
-                  </NavLink>
+                  <NavItem to="/admin/properties" icon={FaBuilding} label="Properties" />
+                  <NavItem to="/admin/users" icon={FaUsers} label="Users" />
+                  <NavItem to="/admin/analytics" icon={FaChartLine} label="Analytics" />
                 </>
               )}
 
-              {user.role === "agent" && (
+              {user.role === ROLES.AGENT && (
                 <>
-                  <NavLink to="/agent/manage-properties" className={({isActive}) => isActive ? activeClass : linkClass}>
-                    <FaBuilding /> Manage Property
-                  </NavLink>
-
-                  <NavLink to="/agent/bookings" className={({isActive}) => isActive ? activeClass : linkClass}>
-                    <FaCalendarCheck /> Bookings
-                  </NavLink>
+                  <NavItem to="/agent/manage-properties" icon={FaBuilding} label="Manage Property" />
+                  <NavItem to="/agent/bookings" icon={FaCalendarCheck} label="Bookings" />
                 </>
               )}
 
-              {user.role === "user" && (
+              {user.role === ROLES.USER && (
                 <>
-                  <NavLink to="/user/saved" className={({isActive}) => isActive ? activeClass : linkClass}>
-                    <FaHeart /> Wishlist
-                  </NavLink>
-
-                  <NavLink to="/user/bookings" className={({isActive}) => isActive ? activeClass : linkClass}>
-                    <FaCalendarCheck /> My Visits
-                  </NavLink>
+                  <NavItem to="/user/saved" icon={FaHeart} label="Wishlist" />
+                  <NavItem to="/user/bookings" icon={FaCalendarCheck} label="My Visits" />
                 </>
               )}
 
+              {/* SETTINGS */}
               <div className="relative" ref={dropdownRef}>
                 <button
-                  onClick={() => setSettingsOpen(!settingsOpen)}
+                  aria-label="Settings"
+                  onClick={() => setSettingsOpen(prev => !prev)}
                   className={`${linkClass} px-2 py-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 ${settingsOpen ? "text-blue-600 dark:text-blue-400" : ""}`}
                 >
                   <FaCog /> Settings
                 </button>
 
                 {settingsOpen && (
-                  <div className="absolute right-0 mt-3 w-52 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+  <div className="
+    absolute right-0 mt-3 w-56
+    bg-white/70 dark:bg-gray-900/70
+    backdrop-blur-xl
+    border border-gray-200/50 dark:border-gray-700/50
+    rounded-2xl
+    shadow-2xl
+    overflow-hidden
+    transition-all duration-200
+  ">
 
-                    <NavLink
-                      to={`/${user.role}/profile`}
-                      onClick={() => setSettingsOpen(false)}
-                      className="flex items-center gap-2 px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
-                    >
-                      <FaUser /> Profile
-                    </NavLink>
+    <NavLink
+      to={`/${user.role}/profile`}
+      onClick={() => setSettingsOpen(false)}
+      className="flex items-center gap-3 px-4 py-3 text-sm
+      hover:bg-blue-50 dark:hover:bg-gray-800
+      transition-all duration-200 group"
+    >
+      <FaUser className="text-gray-500 group-hover:text-blue-500 transition" />
+      <span className="group-hover:translate-x-1 transition">
+        Profile
+      </span>
+    </NavLink>
 
-                    <NavLink
-                      to={`/${user.role}/change-password`}
-                      onClick={() => setSettingsOpen(false)}
-                      className="flex items-center gap-2 px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
-                    >
-                      <FaKey /> Change Password
-                    </NavLink>
+    <NavLink
+      to={`/${user.role}/change-password`}
+      onClick={() => setSettingsOpen(false)}
+      className="flex items-center gap-3 px-4 py-3 text-sm
+      hover:bg-blue-50 dark:hover:bg-gray-800
+      transition-all duration-200 group"
+    >
+      <FaKey className="text-gray-500 group-hover:text-blue-500 transition" />
+      <span className="group-hover:translate-x-1 transition">
+        Change Password
+      </span>
+    </NavLink>
 
-                  </div>
-                )}
+  </div>
+)}
               </div>
 
               <button
@@ -304,8 +326,9 @@ function Header() {
 
         {/* MOBILE TOGGLE */}
         <button
+          aria-label="Toggle Menu"
           className="md:hidden text-2xl text-gray-700 dark:text-gray-300"
-          onClick={() => setMenuOpen(!menuOpen)}
+          onClick={() => setMenuOpen(prev => !prev)}
         >
           {menuOpen ? <FaTimes /> : <FaBars />}
         </button>
@@ -339,7 +362,6 @@ function Header() {
             {darkMode ? <FaSun /> : <FaMoon />} Toggle Theme
           </button>
 
-          {/* MOBILE NOTIFICATIONS */}
           {user && (
             <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg">
               <p className="font-semibold mb-2">Notifications ({unread})</p>
@@ -356,68 +378,21 @@ function Header() {
 
           {!user && (
             <>
-              <NavLink to="/" onClick={()=>setMenuOpen(false)} className={`${linkClass} transition`}><FaHome /> Home</NavLink>
-              <NavLink to="/about" onClick={()=>setMenuOpen(false)} className={`${linkClass} transition`}><FaInfoCircle /> About</NavLink>
-              <NavLink to="/terms" onClick={()=>setMenuOpen(false)} className={`${linkClass} transition`}><FaFileContract /> Terms</NavLink>
-              <NavLink to="/privacy" onClick={()=>setMenuOpen(false)} className={`${linkClass} transition`}><FaShieldAlt /> Privacy</NavLink>
-              <NavLink to="/login" onClick={()=>setMenuOpen(false)} className={`${linkClass} transition`}><FaSignInAlt /> Login</NavLink>
-              <NavLink to="/register" onClick={()=>setMenuOpen(false)} className={`${linkClass} transition`}><FaUserPlus /> Register</NavLink>
+              <NavItem to="/" icon={FaHome} label="Home" onClick={()=>setMenuOpen(false)} />
+              <NavItem to="/about" icon={FaInfoCircle} label="About" onClick={()=>setMenuOpen(false)} />
+              <NavItem to="/terms" icon={FaFileContract} label="Terms" onClick={()=>setMenuOpen(false)} />
+              <NavItem to="/privacy" icon={FaShieldAlt} label="Privacy" onClick={()=>setMenuOpen(false)} />
+              <NavItem to="/login" icon={FaSignInAlt} label="Login" onClick={()=>setMenuOpen(false)} />
+              <NavItem to="/register" icon={FaUserPlus} label="Register" onClick={()=>setMenuOpen(false)} />
             </>
           )}
 
           {user && (
             <>
-              <NavLink to={getDashboardLink()} onClick={()=>setMenuOpen(false)} className={`${linkClass} transition`}>
-                <FaHome /> Dashboard
-              </NavLink>
+              <NavItem to={getDashboardLink()} icon={FaHome} label="Dashboard" onClick={()=>setMenuOpen(false)} />
 
-              {user.role === "admin" && (
-                <>
-                  <NavLink to="/admin/properties" onClick={()=>setMenuOpen(false)} className={`${linkClass} transition`}>
-                    <FaBuilding /> Properties
-                  </NavLink>
-
-                  <NavLink to="/admin/users" onClick={()=>setMenuOpen(false)} className={`${linkClass} transition`}>
-                    <FaUsers /> Users
-                  </NavLink>
-
-                  <NavLink to="/admin/analytics" onClick={()=>setMenuOpen(false)} className={`${linkClass} transition`}>
-                    <FaChartLine /> Analytics
-                  </NavLink>
-                </>
-              )}
-
-              {user.role === "agent" && (
-                <>
-                  <NavLink to="/agent/manage-properties" onClick={()=>setMenuOpen(false)} className={`${linkClass} transition`}>
-                    <FaBuilding /> Manage Property
-                  </NavLink>
-
-                  <NavLink to="/agent/bookings" onClick={()=>setMenuOpen(false)} className={`${linkClass} transition`}>
-                    <FaCalendarCheck /> Bookings
-                  </NavLink>
-                </>
-              )}
-
-              {user.role === "user" && (
-                <>
-                  <NavLink to="/user/saved" onClick={()=>setMenuOpen(false)} className={`${linkClass} transition`}>
-                    <FaHeart /> Wishlist
-                  </NavLink>
-
-                  <NavLink to="/user/bookings" onClick={()=>setMenuOpen(false)} className={`${linkClass} transition`}>
-                    <FaCalendarCheck /> My Visits
-                  </NavLink>
-                </>
-              )}
-
-              <NavLink to={`/${user.role}/profile`} onClick={()=>setMenuOpen(false)} className={`${linkClass} transition`}>
-                <FaUser /> Profile
-              </NavLink>
-
-              <NavLink to={`/${user.role}/change-password`} onClick={()=>setMenuOpen(false)} className={`${linkClass} transition`}>
-                <FaKey /> Change Password
-              </NavLink>
+              <NavItem to={`/${user.role}/profile`} icon={FaUser} label="Profile" onClick={()=>setMenuOpen(false)} />
+              <NavItem to={`/${user.role}/change-password`} icon={FaKey} label="Change Password" onClick={()=>setMenuOpen(false)} />
 
               <button
                 onClick={handleLogout}

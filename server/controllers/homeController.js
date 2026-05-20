@@ -1,29 +1,59 @@
 const Property = require("../models/Property")
 
+// ============================
+// HOME DATA (PRODUCTION READY)
+// ============================
 const getHomeData = async (req, res) => {
   try {
-    const page = parseInt(req.query.page) || 1
+
+    // ✅ SAFE PAGINATION
+    let page = Number(req.query.page) || 1
     const limit = 6
+
+    page = page < 1 ? 1 : page
     const skip = (page - 1) * limit
 
-    // Featured properties
-    const featured = await Property.find({ featured: true }).limit(3)
+    // ============================
+    // PARALLEL DB CALLS 🚀
+    // ============================
+    const [featured, properties, total] = await Promise.all([
 
-    // Paginated properties
-    const properties = await Property.find()
-      .skip(skip)
-      .limit(limit)
+      // ✅ FEATURED (ONLY APPROVED)
+      Property.find({
+        featured: true,
+        status: "APPROVED"
+      })
+        .sort({ createdAt: -1 })
+        .limit(3)
+        .select("title city price images"),
 
-    const total = await Property.countDocuments()
+      // ✅ PAGINATED LIST
+      Property.find({
+        status: "APPROVED"
+      })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .select("title city price images"),
 
-    res.status(200).json({
+      // ✅ TOTAL COUNT
+      Property.countDocuments({
+        status: "APPROVED"
+      })
+    ])
+
+    return res.status(200).json({
+      success: true,
       featured,
       properties,
       totalPages: Math.ceil(total / limit)
     })
-  } catch (error) {
-    console.error(error)
-    res.status(500).json({ message: "Server Error" })
+
+  } catch {
+    return res.status(500).json({
+      success: false,
+      message: "Server error"
+    })
   }
 }
 

@@ -3,12 +3,29 @@ import api from "../../services/api"
 import { toast } from "react-toastify"
 import { useNavigate } from "react-router-dom"
 import { FaArrowLeft, FaUpload } from "react-icons/fa"
+import imageCompression from "browser-image-compression"
 
-const AddProperty = () => {
+const AddProperty = ({ editMode = false, propertyData = null, propertyId = null }) => {
+
+  const user = JSON.parse(localStorage.getItem("user"))
+
+  const AMENITIES = [
+    { label: "LIFT", value: "LIFT" },
+    { label: "GYM", value: "GYM" },
+    { label: "POOL", value: "POOL" },
+    { label: "SECURITY", value: "SECURITY" },
+    { label: "PARKING", value: "PARKING" },
+    { label: "GARDEN", value: "GARDEN" },
+    { label: "POWER BACKUP", value: "POWER_BACKUP" },
+    { label: "CLUBHOUSE", value: "CLUBHOUSE" },
+    { label: "PLAY AREA", value: "PLAY_AREA" },
+    { label: "WIFI", value: "WIFI" }
+  ]
 
   const navigate = useNavigate()
-
   const fileInputRef = useRef(null)
+
+  const [submitting, setSubmitting] = useState(false)
 
   const [formData, setFormData] = useState({
     title: "",
@@ -40,47 +57,82 @@ const AddProperty = () => {
   const [images, setImages] = useState([])
   const [preview, setPreview] = useState([])
 
+  // ✅ NEW: existing images
+  const [existingImages, setExistingImages] = useState([])
+
+  // ================= PREFILL =================
+  useEffect(() => {
+    if (editMode && propertyData) {
+
+      const lat = propertyData?.location?.lat || ""
+      const lng = propertyData?.location?.lng || ""
+
+      setFormData(prev => ({
+        ...prev,
+        ...propertyData,
+        lat,
+        lng
+      }))
+
+      if (propertyData.amenities) {
+        setAmenities(propertyData.amenities)
+      }
+
+      if (propertyData?.media?.images) {
+        setExistingImages(propertyData.media.images)
+      }
+    }
+  }, [editMode, propertyData])
+
   const isPlotOrLand =
     formData.type === "PLOT" || formData.type === "LAND"
 
   const isCommercial =
     ["COMMERCIAL", "SHOP", "OFFICE", "WAREHOUSE"].includes(formData.type)
 
+  // ================= ROLE =================
+  useEffect(() => {
+    if (!user) return
+
+    if (!editMode && user.role !== "agent") {
+      toast.error("Only agents can add property")
+      navigate("/")
+    }
+
+    if (editMode && user.role === "user") {
+      toast.error("Not authorized")
+      navigate("/")
+    }
+  }, [])
+
+  // ================= HANDLE =================
   const handleChange = (e) => {
     let { name, value, type, checked } = e.target
 
-    if (type === "checkbox") {
-      setFormData({ ...formData, [name]: checked })
-      return
-    }
+    setFormData(prev => {
+      if (type === "checkbox") return { ...prev, [name]: checked }
 
-    if (["title", "address", "city", "state"].includes(name)) {
-      value = value.toUpperCase().replace(/[^A-Z0-9\s]/g, "")
-    }
+      let newValue = value
 
-    if (name === "description") {
-      value = value.toUpperCase()
-    }
+      if (["title","address","city","state"].includes(name)) {
+        newValue = value.toUpperCase().replace(/[^A-Z0-9\s]/g, "")
+      }
 
-    if ([
-      "price",
-      "pincode",
-      "bedrooms",
-      "bathrooms",
-      "balconies",
-      "area",
-      "floor",
-      "totalFloors",
-      "maintenanceCharge"
-    ].includes(name)) {
-      value = value.replace(/\D/g, "")
-    }
+      if (name === "description") newValue = value.toUpperCase()
 
-    if (["lat", "lng"].includes(name)) {
-      value = value.replace(/[^\d.-]/g, "")
-    }
+      if ([
+        "price","pincode","bedrooms","bathrooms",
+        "balconies","area","floor","totalFloors","maintenanceCharge"
+      ].includes(name)) {
+        newValue = value.replace(/\D/g, "")
+      }
 
-    setFormData({ ...formData, [name]: value })
+      if (["lat","lng"].includes(name)) {
+        newValue = value.replace(/[^\d.-]/g, "")
+      }
+
+      return { ...prev, [name]: newValue }
+    })
   }
 
   const toggleAmenity = (item) => {
@@ -91,131 +143,112 @@ const AddProperty = () => {
     )
   }
 
-  const handleImageChange = (e) => {
+  // ================= IMAGE =================
+  const compressImage = async (file) => {
+    try {
+      return await imageCompression(file, {
+        maxSizeMB: 1,
+        maxWidthOrHeight: 1920
+      })
+    } catch {
+      return file
+    }
+  }
+
+  const handleImageChange = async (e) => {
     const files = Array.from(e.target.files)
 
-    const MAX_IMAGES = 10
-    const MAX_SIZE_MB = 5
-
-    if (images.length + files.length > MAX_IMAGES) {
-      toast.error(`Max ${MAX_IMAGES} images allowed`)
-      return
-    }
-
     const validFiles = []
-
     for (let file of files) {
-
-      // only images
-      if (!file.type.startsWith("image/")) {
-        toast.error("Only image files allowed")
-        continue
-      }
-
-      // size check
-      if (file.size > MAX_SIZE_MB * 1024 * 1024) {
-        toast.error(`${file.name} is too large`)
-        continue
-      }
-
-      // duplicate check
-      const exists = images.some(
-        img => img.name === file.name && img.size === file.size
-      )
-
-      if (!exists) validFiles.push(file)
+      if (!file.type.startsWith("image/")) continue
+      validFiles.push(await compressImage(file))
     }
 
     const newPreviews = validFiles.map(file => URL.createObjectURL(file))
 
     setImages(prev => [...prev, ...validFiles])
     setPreview(prev => [...prev, ...newPreviews])
-
-    // reset input (important)
-    fileInputRef.current.value = ""
   }
 
+  const removeImage = (i) => {
+    setImages(prev => prev.filter((_, index) => index !== i))
+    setPreview(prev => prev.filter((_, index) => index !== i))
+  }
+
+  const removeExistingImage = (i) => {
+    setExistingImages(prev => prev.filter((_, index) => index !== i))
+  }
+
+  // ================= SUBMIT =================
   const handleSubmit = async (e) => {
     e.preventDefault()
-
-    if (!formData.title || !formData.description || !formData.price) {
-      toast.error("Please fill all required fields")
-      return
-    }
-
-    if (!formData.type || !formData.purpose) {
-      toast.error("Please select Property Type and Purpose")
-      return
-    }
-
-    if (formData.pincode && formData.pincode.length !== 6) {
-      toast.error("Pincode must be 6 digits")
-      return
-    }
-
-    if (!images.length) {
-      toast.error("Please upload at least one image")
-      return
-    }
+    if (submitting) return
 
     try {
+      setSubmitting(true)
+
       const data = new FormData()
 
-      Object.keys(formData).forEach(key => {
-        data.append(key, formData[key]?.toString().trim())
+      Object.entries(formData).forEach(([k, v]) => {
+        if (v !== "") data.append(k, v)
       })
+
+      // ✅ coordinates fix
+      if (formData.lat && formData.lng) {
+        data.append("lat", formData.lat)
+        data.append("lng", formData.lng)
+      }
 
       amenities.forEach(a => data.append("amenities", a))
       images.forEach(img => data.append("images", img))
 
-      await api.post("/properties", data)
+      // ✅ send existing images
+      existingImages.forEach(img => data.append("existingImages", img))
 
-      toast.success("Property Added Successfully")
-      navigate("/agent/manage-properties")
+      if (editMode) {
+        await api.put(`/properties/${propertyId}`, data)
+        toast.success("Property Updated Successfully")
+      } else {
+        await api.post("/properties", data)
+        toast.success("Property Added Successfully")
+      }
+
+      navigate(user.role === "admin"
+        ? "/admin/properties"
+        : "/agent/manage-properties"
+      )
 
     } catch {
-      toast.error("Failed to Add Property")
-    } 
-  }
-
-  const AMENITIES = [
-    { label: "LIFT", value: "LIFT" },
-    { label: "GYM", value: "GYM" },
-    { label: "POOL", value: "POOL" },
-    { label: "SECURITY", value: "SECURITY" },
-    { label: "PARKING", value: "PARKING" },
-    { label: "GARDEN", value: "GARDEN" },
-    { label: "POWER BACKUP", value: "POWER_BACKUP" },
-    { label: "CLUBHOUSE", value: "CLUBHOUSE" },
-    { label: "PLAY AREA", value: "PLAY_AREA" },
-    { label: "WIFI", value: "WIFI" }
-  ]
-
-  const removeImage = (index) => {
-    URL.revokeObjectURL(preview[index])
-
-    setImages(prev => prev.filter((_, i) => i !== index))
-    setPreview(prev => prev.filter((_, i) => i !== index))
-  }
-
-  useEffect(() => {
-    return () => {
-      preview.forEach(url => URL.revokeObjectURL(url))
+      toast.error("Something went wrong")
+    } finally {
+      setSubmitting(false)
     }
-  }, [preview])
+  }
+
+  const handleBack = () => {
+    navigate(user.role === "admin"
+      ? "/admin/properties"
+      : "/agent/manage-properties"
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 px-3 sm:px-6 py-4">
 
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">Add New Property</h2>
+        <h2 className="text-2xl font-bold">
+          {editMode ? "Edit Property" : "Add New Property"}
+        </h2>
+
         <button
-          onClick={() => navigate("/agent/manage-properties")}
+          onClick={handleBack}
           className="flex items-center gap-2 px-4 py-2 bg-gray-300 dark:bg-gray-700 rounded-lg"
         >
           <FaArrowLeft /> Back
         </button>
       </div>
+
+      {/* 🔥 UI SAME — ONLY ADDED EXISTING IMAGE GRID */}
 
       <div className="max-w-5xl mx-auto bg-white dark:bg-gray-800 rounded-2xl shadow-md p-4 sm:p-6 md:p-8">
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -335,8 +368,8 @@ const AddProperty = () => {
             </div>
 
             {/* RESIDENTIAL DETAILS */}
-            <div className="border-t pt-6">
-              {!isPlotOrLand && (
+            {!isPlotOrLand && (
+              <div className="border-t pt-6">
                 <div className="space-y-6">
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
@@ -464,22 +497,26 @@ const AddProperty = () => {
                     </div>
 
                   </div>
+
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
             {/* MAINTENANCE */}
-            <div className="border-t pt-6">
-              <div>
-                <label className="block mb-2 font-medium">Maintenance Charge</label>
-                <input
-                  name="maintenanceCharge"
-                  value={formData.maintenanceCharge}
-                  onChange={handleChange}
-                  className="w-full p-3 border rounded-lg dark:bg-gray-900 focus:ring-2 focus:ring-blue-500 outline-none"
-                />
+            {!isPlotOrLand && (
+              <div className="border-t pt-6">
+                <div>
+                  <label className="block mb-2 font-medium">Maintenance Charge</label>
+
+                  <input
+                    name="maintenanceCharge"
+                    value={formData.maintenanceCharge}
+                    onChange={handleChange}
+                    className="w-full p-3 border rounded-lg dark:bg-gray-900 focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
               </div>
-            </div>
+            )}
 
           </div>
 
@@ -591,6 +628,8 @@ const AddProperty = () => {
                   <div key={i} className="relative group">
                     <img
                       src={img}
+                      loading="lazy"
+                      onError={(e) => (e.target.src = "/no-image.jpg")}
                       className="h-24 w-full object-cover rounded-lg cursor-pointer"
                     />
 
@@ -608,10 +647,41 @@ const AddProperty = () => {
 
           </div>
 
+          {/* EXISTING IMAGES (EDIT MODE) */}
+          {existingImages.length > 0 && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mt-4">
+              {existingImages.map((img, i) => (
+                <div key={i} className="relative group">
+                  <img
+                    src={img}
+                    loading="lazy"
+                    onError={(e) => (e.target.src = "/no-image.jpg")}
+                    className="h-24 w-full object-cover rounded-lg"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => removeExistingImage(i)}
+                    className="absolute top-1 right-1 bg-black/70 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="flex flex-col sm:flex-row gap-3 pt-4">
-            <button type="submit"
-              className="bg-blue-600 hover:bg-blue-700 transition text-white px-6 py-3 rounded-lg w-full sm:w-auto shadow">
-              Add Property
+            <button
+              type="submit"
+              disabled={submitting}
+              className={`px-6 py-3 rounded-lg w-full sm:w-auto shadow text-white transition ${
+                submitting
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-blue-600 hover:bg-blue-700"
+              }`}
+            >
+              {submitting ? "Adding..." : "Add Property"}
             </button>
 
             <button type="button"
@@ -623,6 +693,7 @@ const AddProperty = () => {
 
         </form>
       </div>
+
     </div>
   )
 }

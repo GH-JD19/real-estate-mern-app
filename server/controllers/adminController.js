@@ -1,25 +1,41 @@
+const mongoose = require("mongoose")
 const User = require("../models/User")
 const Property = require("../models/Property")
 const Booking = require("../models/Booking")
 const sendEmail = require("../utils/sendEmail")
 
 // ============================
+// HELPERS
+// ============================
+const isValidId = (id) => mongoose.Types.ObjectId.isValid(id)
+
+const escapeRegex = (text) =>
+  text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+
+
+// ============================
 // GET ADMIN DASHBOARD STATS
 // ============================
 const getAdminStats = async (req, res) => {
   try {
-    const totalUsers = await User.countDocuments({ role: "user" })
-    const totalAgents = await User.countDocuments({ role: "agent" })
-    const blockedUsers = await User.countDocuments({ isBlocked: true })
 
-    const totalProperties = await Property.countDocuments()
-    const pendingProperties = await Property.countDocuments({
-      status: { $regex: /^pending$/i }
-    })
+    const [
+      totalUsers,
+      totalAgents,
+      blockedUsers,
+      totalProperties,
+      pendingProperties,
+      totalBookings
+    ] = await Promise.all([
+      User.countDocuments({ role: "user" }),
+      User.countDocuments({ role: "agent" }),
+      User.countDocuments({ isBlocked: true }),
+      Property.countDocuments(),
+      Property.countDocuments({ status: "PENDING" }), // ✅ FIXED
+      Booking.countDocuments()
+    ])
 
-    const totalBookings = await Booking.countDocuments()
-
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       stats: {
         totalUsers,
@@ -30,8 +46,12 @@ const getAdminStats = async (req, res) => {
         totalBookings
       }
     })
+
   } catch (error) {
-    res.status(500).json({ success:false, message:error.message })
+    return res.status(500).json({
+      success: false,
+      message: "Server error"
+    })
   }
 }
 
@@ -42,160 +62,158 @@ const getAdminStats = async (req, res) => {
 const getAdminChartData = async (req, res) => {
   try {
 
-    const userGrowth = await User.aggregate([
-      { $match: { role: "user" } },
-      { $group: { _id: { $month: "$createdAt" }, total: { $sum: 1 } } }
-    ])
+    const [
+      userGrowth,
+      agentGrowth,
+      propertyGrowth,
+      pendingGrowth,
+      blockedGrowth,
+      bookingGrowth
+    ] = await Promise.all([
 
-    const agentGrowth = await User.aggregate([
-      { $match: { role: "agent" } },
-      { $group: { _id: { $month: "$createdAt" }, total: { $sum: 1 } } }
-    ])
+      User.aggregate([
+        { $match: { role: "user" } },
+        { $group: { _id: { $month: "$createdAt" }, total: { $sum: 1 } } }
+      ]),
 
-    const propertyGrowth = await Property.aggregate([
-      { $group: { _id: { $month: "$createdAt" }, total: { $sum: 1 } } }
-    ])
+      User.aggregate([
+        { $match: { role: "agent" } },
+        { $group: { _id: { $month: "$createdAt" }, total: { $sum: 1 } } }
+      ]),
 
-    const pendingGrowth = await Property.aggregate([
-      { $match: { status: { $regex: /^pending$/i } } },
-      { $group: { _id: { $month: "$createdAt" }, total: { $sum: 1 } } }
-    ])
+      Property.aggregate([
+        { $group: { _id: { $month: "$createdAt" }, total: { $sum: 1 } } }
+      ]),
 
-    const blockedGrowth = await User.aggregate([
-      { $match: { isBlocked: true } },
-      { $group: { _id: { $month: "$createdAt" }, total: { $sum: 1 } } }
-    ])
+      Property.aggregate([
+        { $match: { status: "PENDING" } }, // ✅ FIXED
+        { $group: { _id: { $month: "$createdAt" }, total: { $sum: 1 } } }
+      ]),
 
-    const bookingGrowth = await Booking.aggregate([
-      { $group: { _id: { $month: "$createdAt" }, total: { $sum: 1 } } }
+      User.aggregate([
+        { $match: { isBlocked: true } },
+        { $group: { _id: { $month: "$createdAt" }, total: { $sum: 1 } } }
+      ]),
+
+      Booking.aggregate([
+        { $group: { _id: { $month: "$createdAt" }, total: { $sum: 1 } } }
+      ])
     ])
 
     const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
 
     const chartData = months.map((month, index) => {
-
-      const user = userGrowth.find(u => u._id === index + 1)
-      const agent = agentGrowth.find(a => a._id === index + 1)
-      const property = propertyGrowth.find(p => p._id === index + 1)
-      const pending = pendingGrowth.find(p => p._id === index + 1)
-      const blocked = blockedGrowth.find(b => b._id === index + 1)
-      const booking = bookingGrowth.find(b => b._id === index + 1)
+      const m = index + 1
 
       return {
         name: month,
-        users: user ? user.total : 0,
-        agents: agent ? agent.total : 0,
-        properties: property ? property.total : 0,
-        pending: pending ? pending.total : 0,
-        bookings: booking ? booking.total : 0
+        users: userGrowth.find(u => u._id === m)?.total || 0,
+        agents: agentGrowth.find(a => a._id === m)?.total || 0,
+        properties: propertyGrowth.find(p => p._id === m)?.total || 0,
+        pending: pendingGrowth.find(p => p._id === m)?.total || 0,
+        bookings: bookingGrowth.find(b => b._id === m)?.total || 0
       }
     })
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       chartData
     })
 
   } catch (error) {
-    res.status(500).json({ success:false, message:error.message })
+    return res.status(500).json({
+      success: false,
+      message: "Server error"
+    })
   }
 }
 
 
 // ============================
-// GET ALL USERS (WITH FILTER)
+// GET ALL USERS (FINAL SAFE)
 // ============================
 const getAllUsers = async (req, res) => {
   try {
 
-    const page = parseInt(req.query.page) || 1
-    const limit = parseInt(req.query.limit) || 6
+    let page = Number(req.query.page) || 1
+    let limit = Number(req.query.limit) || 6
     const search = req.query.search || ""
 
-    let filter = {}
+    // ✅ SAFE LIMITS
+    page = page < 1 ? 1 : page
+    limit = limit > 50 ? 50 : limit
 
-    // SEARCH BY NAME OR EMAIL
+    const filter = {}
+
     if (search) {
+      const safeSearch = escapeRegex(search)
       filter.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { email: { $regex: search, $options: "i" } }
+        { name: { $regex: safeSearch, $options: "i" } },
+        { email: { $regex: safeSearch, $options: "i" } }
       ]
     }
 
-    // FILTER AGENTS
-    if (req.query.role === "agent") {
-      filter.role = "agent"
+    if (req.query.role === "agent" || req.query.role === "user") {
+      filter.role = req.query.role
     }
 
-    // FILTER USERS
-    if (req.query.role === "user") {
-      filter.role = "user"
-    }
-
-    // FILTER BLOCKED USERS
     if (req.query.blocked === "true") {
       filter.isBlocked = true
     }
 
-    const users = await User.find(filter)
-      .select("-password")
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit)
+    const [users, total] = await Promise.all([
+      User.find(filter)
+        .select("-password")
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit),
 
-    const total = await User.countDocuments(filter)
+      User.countDocuments(filter)
+    ])
 
-    res.json({
+    return res.json({
       success: true,
       users,
       totalPages: Math.ceil(total / limit)
     })
 
   } catch (error) {
-
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: error.message
+      message: "Server error"
     })
-
   }
 }
 
 
 // ============================
-// PROMOTE USER
+// ROLE UPDATE HELPERS
 // ============================
-const promoteToAgent = async (req, res) => {
+const updateUserRole = async (req, res, role) => {
   try {
-    const user = await User.findById(req.params.id)
-    if (!user) return res.status(404).json({ success:false })
 
-    user.role = "agent"
+    const { id } = req.params
+    if (!isValidId(id)) {
+      return res.status(400).json({ success: false, message: "Invalid ID" })
+    }
+
+    const user = await User.findById(id)
+    if (!user) {
+      return res.status(404).json({ success: false })
+    }
+
+    user.role = role
     await user.save()
 
-    res.json({ success:true })
-  } catch (error) {
-    res.status(500).json({ success:false, message:error.message })
+    return res.json({ success: true })
+
+  } catch {
+    return res.status(500).json({ success: false, message: "Server error" })
   }
 }
 
-
-// ============================
-// DEMOTE USER
-// ============================
-const demoteToUser = async (req, res) => {
-  try {
-    const user = await User.findById(req.params.id)
-    if (!user) return res.status(404).json({ success:false })
-
-    user.role = "user"
-    await user.save()
-
-    res.json({ success:true })
-  } catch (error) {
-    res.status(500).json({ success:false, message:error.message })
-  }
-}
+const promoteToAgent = (req, res) => updateUserRole(req, res, "agent")
+const demoteToUser = (req, res) => updateUserRole(req, res, "user")
 
 
 // ============================
@@ -203,115 +221,122 @@ const demoteToUser = async (req, res) => {
 // ============================
 const toggleBlockUser = async (req, res) => {
   try {
-    const user = await User.findById(req.params.id)
-    if (!user) return res.status(404).json({ success:false })
+
+    const { id } = req.params
+    if (!isValidId(id)) {
+      return res.status(400).json({ success: false, message: "Invalid ID" })
+    }
+
+    const user = await User.findById(id)
+    if (!user) return res.status(404).json({ success: false })
 
     user.isBlocked = !user.isBlocked
     await user.save()
 
-    res.json({ success:true })
-  } catch (error) {
-    res.status(500).json({ success:false, message:error.message })
+    return res.json({ success: true })
+
+  } catch {
+    return res.status(500).json({ success: false, message: "Server error" })
   }
-}
-
-// ACTIVATE USER
-const activateUser = async (req, res) => {
-
-  try {
-
-    const user = await User.findById(req.params.id)
-
-    if (!user)
-      return res.status(404).json({ message: "User not found" })
-
-    user.isActive = true
-    user.isBlocked = false
-
-    await user.save()
-
-    await sendEmail({
-      email: user.email,
-      subject: "Account Activated",
-      message: `
-Hello ${user.name},
-
-Your account has been successfully activated.
-
-You can now login to the platform.
-
-Thank you.
-`
-    })
-
-    res.json({
-      success: true,
-      message: "User activated"
-    })
-
-  } catch (error) {
-
-    res.status(500).json({
-      success: false,
-      message: error.message
-    })
-
-  }
-
-}
-
-
-const bulkAction = async (req, res) => {
-
-  try {
-
-    const { ids, action } = req.body
-
-    if (!ids || ids.length === 0)
-      return res.status(400).json({ message: "No users selected" })
-
-    const users = await User.find({ _id: { $in: ids } })
-
-    for (let user of users) {
-
-      if (action === "activate") {
-        user.isActive = true
-        user.isBlocked = false
-
-        await sendEmail({
-          email: user.email,
-          subject: "Account Activated",
-          message: `Hello ${user.name}, your account is now active.`
-        })
-      }
-
-      if (action === "block") {
-        user.isBlocked = true
-      }
-
-      await user.save()
-
-    }
-
-    res.json({
-      success: true,
-      message: "Bulk action completed"
-    })
-
-  } catch (error) {
-
-    res.status(500).json({
-      success: false,
-      message: error.message
-    })
-
-  }
-
 }
 
 
 // ============================
-// EXPORTS (VERY IMPORTANT)
+// ACTIVATE USER
+// ============================
+const activateUser = async (req, res) => {
+  try {
+
+    const { id } = req.params
+    if (!isValidId(id)) {
+      return res.status(400).json({ success: false, message: "Invalid ID" })
+    }
+
+    const user = await User.findById(id)
+    if (!user) {
+      return res.status(404).json({ message: "User not found" })
+    }
+
+    user.isActive = true
+    user.isBlocked = false
+    await user.save()
+
+    // ✅ NON-BLOCKING EMAIL
+    sendEmail({
+      email: user.email,
+      subject: "Account Activated",
+      message: `Hello ${user.name}, your account is now active.`
+    }).catch(() => {})
+
+    return res.json({
+      success: true,
+      message: "User activated"
+    })
+
+  } catch {
+    return res.status(500).json({
+      success: false,
+      message: "Server error"
+    })
+  }
+}
+
+
+// ============================
+// BULK ACTION (OPTIMIZED)
+// ============================
+const bulkAction = async (req, res) => {
+  try {
+
+    const { ids, action } = req.body
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: "No users selected" })
+    }
+
+    const validIds = ids.filter(id => isValidId(id))
+
+    if (action === "block") {
+      await User.updateMany(
+        { _id: { $in: validIds } },
+        { $set: { isBlocked: true } }
+      )
+    }
+
+    if (action === "activate") {
+      const users = await User.find({ _id: { $in: validIds } })
+
+      await User.updateMany(
+        { _id: { $in: validIds } },
+        { $set: { isActive: true, isBlocked: false } }
+      )
+
+      // ✅ async emails
+      users.forEach(user => {
+        sendEmail({
+          email: user.email,
+          subject: "Account Activated",
+          message: `Hello ${user.name}, your account is now active.`
+        }).catch(() => {})
+      })
+    }
+
+    return res.json({
+      success: true,
+      message: "Bulk action completed"
+    })
+
+  } catch {
+    return res.status(500).json({
+      success: false,
+      message: "Server error"
+    })
+  }
+}
+
+
+// ============================
+// EXPORTS
 // ============================
 module.exports = {
   getAdminStats,

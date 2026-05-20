@@ -1,10 +1,12 @@
-import { useState } from "react"
+import { useState, useCallback } from "react"
 import { useNavigate, Link } from "react-router-dom"
 import { FaEye, FaEyeSlash } from "react-icons/fa"
 import { FiMail, FiUser, FiPhone, FiMapPin } from "react-icons/fi"
 import api from "../services/api"
 import { useAuth } from "../context/AuthContext"
 import toast from "react-hot-toast"
+
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 function Register() {
   const navigate = useNavigate()
@@ -23,50 +25,20 @@ function Register() {
   })
 
   const [error, setError] = useState("")
-  const [emailError, setEmailError] = useState("")
-  const [phoneError, setPhoneError] = useState("")
-  const [emailValid, setEmailValid] = useState(null)
   const [passwordStrength, setPasswordStrength] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [passwordMatchError, setPasswordMatchError] = useState("")
 
-  const validateEmail = (value) => {
-    const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!value) {
-      setEmailError("")
-      setEmailValid(null)
-    } else if (!regex.test(value)) {
-      setEmailError("Please enter a valid email")
-      setEmailValid(false)
-    } else {
-      setEmailError("")
-      setEmailValid(true)
-    }
-  }
-
-  const validatePhone = (value) => {
-    if (value.length !== 10) {
-      setPhoneError("Mobile number must be 10 digits")
-      return false
-    }
-    setPhoneError("")
-    return true
-  }
+  const isEmailValid = emailRegex.test(form.email)
+  const isPhoneValid = form.phone.length === 10
+  const isPasswordMatch =
+    form.password && form.password === form.confirmPassword
 
   const checkPasswordStrength = (password) => {
-    if (password.length < 6) return setPasswordStrength("Weak")
+    if (password.length < 6) return "Weak"
     if (/[A-Z]/.test(password) && /\d/.test(password) && password.length >= 8)
-      return setPasswordStrength("Strong")
-    return setPasswordStrength("Medium")
-  }
-
-  const checkPasswordMatch = (password, confirmPassword) => {
-    if (confirmPassword && password !== confirmPassword) {
-      setPasswordMatchError("Passwords do not match")
-    } else {
-      setPasswordMatchError("")
-    }
+      return "Strong"
+    return "Medium"
   }
 
   const handleChange = (e) => {
@@ -74,41 +46,32 @@ function Register() {
 
     if (name === "name" || name === "address") value = value.toUpperCase()
 
-    if (name === "email") {
-      value = value.trim().toLowerCase()
-      validateEmail(value)
+    if (name === "email") value = value.trim().toLowerCase()
+
+    if (name === "phone") value = value.replace(/\D/g, "").slice(0, 10)
+
+    if (name === "password") {
+      setPasswordStrength(checkPasswordStrength(value))
     }
 
-    if (name === "phone") {
-      value = value.replace(/\D/g, "").slice(0, 10)
-      validatePhone(value)
-    }
-
-    const updatedForm = { ...form, [name]: value }
-    setForm(updatedForm)
-
-    if (name === "password") checkPasswordStrength(value)
-
-    if (name === "password" || name === "confirmPassword") {
-      checkPasswordMatch(
-        name === "password" ? value : updatedForm.password,
-        name === "confirmPassword" ? value : updatedForm.confirmPassword
-      )
-    }
+    setForm((prev) => ({ ...prev, [name]: value }))
   }
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault()
     setError("")
 
-    if (!form.email || emailValid === false) {
+    if (!isEmailValid) {
       toast.error("Enter a valid email")
       return
     }
 
-    if (!validatePhone(form.phone)) return
+    if (!isPhoneValid) {
+      toast.error("Enter valid 10-digit mobile number")
+      return
+    }
 
-    if (form.password !== form.confirmPassword) {
+    if (!isPasswordMatch) {
       toast.error("Passwords do not match")
       return
     }
@@ -126,8 +89,10 @@ function Register() {
           success: "Account created successfully 🎉",
           error: (err) => {
             const msg = err.response?.data?.message || "Registration failed"
-            if (msg.includes("email")) return "Email already registered"
-            if (msg.includes("phone")) return "Mobile already registered"
+            if (msg.toLowerCase().includes("email"))
+              return "Email already registered"
+            if (msg.toLowerCase().includes("phone"))
+              return "Mobile already registered"
             return msg
           },
         }
@@ -141,7 +106,7 @@ function Register() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [form, isEmailValid, isPhoneValid, isPasswordMatch, navigate])
 
   const strengthColor = {
     Weak: "text-red-500",
@@ -150,7 +115,7 @@ function Register() {
   }
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center bg-gradient-to-br from-gray-50 via-blue-50 to-gray-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 px-4 pt-9 pb-9">
+    <section className="min-h-[80vh] flex items-center justify-center bg-gradient-to-br from-gray-50 via-blue-50 to-gray-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 px-4 py-10">
 
       <div className="w-full max-w-5xl grid md:grid-cols-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur-xl border border-gray-200 dark:border-gray-700 rounded-3xl shadow-2xl overflow-hidden">
 
@@ -167,20 +132,25 @@ function Register() {
         {/* RIGHT PANEL */}
         <div className="p-8 md:p-12">
 
-          <h2 className="text-3xl font-semibold mb-2 text-gray-900 dark:text-white">
-            Create your account
-          </h2>
+          <header>
+            <h2 className="text-3xl font-semibold mb-2 text-gray-900 dark:text-white">
+              Create your account
+            </h2>
 
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-            Fill in your details to get started
-          </p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+              Fill in your details to get started
+            </p>
+          </header>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-5" noValidate>
 
             {/* ROLE */}
             <div>
-              <label className="text-sm text-gray-600 dark:text-gray-300">Register As</label>
+              <label htmlFor="role" className="text-sm text-gray-600 dark:text-gray-300">
+                Register As
+              </label>
               <select
+                id="role"
                 name="role"
                 value={form.role}
                 onChange={handleChange}
@@ -193,10 +163,13 @@ function Register() {
 
             {/* NAME */}
             <div>
-              <label className="text-sm text-gray-600 dark:text-gray-300">Full Name</label>
+              <label htmlFor="name" className="text-sm text-gray-600 dark:text-gray-300">
+                Full Name
+              </label>
               <div className="relative">
                 <FiUser className="absolute left-3 top-3 text-gray-400" />
                 <input
+                  id="name"
                   name="name"
                   value={form.name}
                   onChange={handleChange}
@@ -207,10 +180,13 @@ function Register() {
 
             {/* ADDRESS */}
             <div>
-              <label className="text-sm text-gray-600 dark:text-gray-300">Address</label>
+              <label htmlFor="address" className="text-sm text-gray-600 dark:text-gray-300">
+                Address
+              </label>
               <div className="relative">
                 <FiMapPin className="absolute left-3 top-3 text-gray-400" />
                 <input
+                  id="address"
                   name="address"
                   value={form.address}
                   onChange={handleChange}
@@ -221,42 +197,55 @@ function Register() {
 
             {/* EMAIL */}
             <div>
-              <label className="text-sm text-gray-600 dark:text-gray-300">Email</label>
+              <label htmlFor="email" className="text-sm text-gray-600 dark:text-gray-300">
+                Email
+              </label>
               <div className="relative">
                 <FiMail className="absolute left-3 top-3 text-gray-400" />
                 <input
+                  id="email"
                   name="email"
                   value={form.email}
                   onChange={handleChange}
+                  aria-invalid={form.email && !isEmailValid}
                   className={`w-full mt-1 pl-10 pr-3 py-3 border rounded-xl focus:ring-2 focus:ring-blue-600 outline-none dark:bg-gray-900
-                    ${emailValid === false ? "border-red-500" : ""}
-                    ${emailValid === true ? "border-green-500" : ""}
+                    ${form.email && !isEmailValid ? "border-red-500" : ""}
+                    ${form.email && isEmailValid ? "border-green-500" : ""}
                   `}
                 />
               </div>
-              {emailError && <p className="text-sm text-red-500">{emailError}</p>}
             </div>
 
             {/* PHONE */}
             <div>
-              <label className="text-sm text-gray-600 dark:text-gray-300">Mobile Number</label>
+              <label htmlFor="phone" className="text-sm text-gray-600 dark:text-gray-300">
+                Mobile Number
+              </label>
               <div className="relative">
                 <FiPhone className="absolute left-3 top-3 text-gray-400" />
                 <input
+                  id="phone"
                   name="phone"
                   value={form.phone}
                   onChange={handleChange}
                   className="w-full mt-1 pl-10 pr-3 py-3 border rounded-xl focus:ring-2 focus:ring-blue-600 outline-none dark:bg-gray-900"
                 />
               </div>
-              {phoneError && <p className="text-sm text-red-500">{phoneError}</p>}
+              {form.phone && !isPhoneValid && (
+                <p className="text-sm text-red-500">
+                  Mobile number must be 10 digits
+                </p>
+              )}
             </div>
 
             {/* PASSWORD */}
             <div>
-              <label className="text-sm text-gray-600 dark:text-gray-300">Password</label>
+              <label htmlFor="password" className="text-sm text-gray-600 dark:text-gray-300">
+                Password
+              </label>
               <div className="relative">
                 <input
+                  id="password"
                   name="password"
                   type={showPassword ? "text" : "password"}
                   value={form.password}
@@ -265,12 +254,14 @@ function Register() {
                 />
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
+                  onClick={() => setShowPassword((p) => !p)}
+                  aria-label="Toggle password visibility"
                   className="absolute right-3 top-3 text-gray-500"
                 >
                   {showPassword ? <FaEyeSlash /> : <FaEye />}
                 </button>
               </div>
+
               {form.password && (
                 <p className={`text-sm ${strengthColor[passwordStrength]}`}>
                   Strength: {passwordStrength}
@@ -280,12 +271,13 @@ function Register() {
 
             {/* CONFIRM PASSWORD */}
             <div>
-              <label className="text-sm text-gray-600 dark:text-gray-300">
+              <label htmlFor="confirmPassword" className="text-sm text-gray-600 dark:text-gray-300">
                 Confirm Password
               </label>
 
               <div className="relative">
                 <input
+                  id="confirmPassword"
                   name="confirmPassword"
                   type={showConfirmPassword ? "text" : "password"}
                   value={form.confirmPassword}
@@ -295,15 +287,18 @@ function Register() {
 
                 <button
                   type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-3 top-3 text-gray-500 hover:text-gray-700"
+                  onClick={() => setShowConfirmPassword((p) => !p)}
+                  aria-label="Toggle confirm password visibility"
+                  className="absolute right-3 top-3 text-gray-500"
                 >
                   {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
                 </button>
               </div>
 
-              {passwordMatchError && (
-                <p className="text-sm text-red-500">{passwordMatchError}</p>
+              {form.confirmPassword && !isPasswordMatch && (
+                <p className="text-sm text-red-500">
+                  Passwords do not match
+                </p>
               )}
             </div>
 
@@ -317,15 +312,14 @@ function Register() {
                 loading ||
                 !form.name ||
                 !form.address ||
-                !form.email ||
-                emailValid === false ||
-                form.phone.length !== 10 ||
+                !isEmailValid ||
+                !isPhoneValid ||
                 !form.password ||
-                form.password !== form.confirmPassword
+                !isPasswordMatch
               }
-              className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 active:scale-[0.98] transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 active:scale-[0.98] transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2"
             >
-              Register
+              {loading ? "Creating..." : "Register"}
             </button>
 
             {/* LOGIN */}
@@ -333,7 +327,7 @@ function Register() {
               Already have an account?{" "}
               <Link
                 to="/login"
-                className="text-blue-600 font-semibold hover:underline"
+                className="text-blue-600 font-semibold hover:underline focus:outline-none focus:ring-2 focus:ring-blue-600 rounded"
               >
                 Login
               </Link>
@@ -345,7 +339,7 @@ function Register() {
 
       </div>
 
-    </div>
+    </section>
   )
 }
 

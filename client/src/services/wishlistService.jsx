@@ -1,16 +1,53 @@
 import api from "./api"
 
-// Add property to wishlist
-export const addToWishlist = (id) => {
-  return api.put(`/wishlist/add/${id}`)
+// 🔹 NORMALIZED ERROR HANDLER
+const handleError = (error) => {
+  const message =
+    error?.response?.data?.message ||
+    error?.message ||
+    "Something went wrong"
+
+  return Promise.reject({
+    message,
+    status: error?.response?.status || 500,
+    data: error?.response?.data || null
+  })
 }
 
-// Remove property from wishlist
-export const removeFromWishlist = (id) => {
-  return api.put(`/wishlist/remove/${id}`)
+// ================= ADD TO WISHLIST =================
+export const addToWishlist = async (id) => {
+  if (!id) {
+    return Promise.reject({ message: "Property ID is required" })
+  }
+
+  try {
+    const res = await api.put(`/wishlist/add/${id}`)
+    return res.data
+  } catch (error) {
+    return handleError(error)
+  }
 }
 
-// Get wishlist
-export const getWishlist = () => {
-  return api.get("/wishlist")
+// ================= REMOVE FROM WISHLIST =================
+export const removeFromWishlist = async (id) => {
+  if (!id) {
+    return Promise.reject({ message: "Property ID is required" })
+  }
+
+  try {
+    const res = await api.put(`/wishlist/remove/${id}`)
+    return res.data
+  } catch (error) {
+    return handleError(error)
+  }
+}
+
+// ================= GET WISHLIST =================
+export const getWishlist = async () => {
+  try {
+    const res = await api.get("/wishlist")
+    return res.data
+  } catch (error) {
+    return handleError(error)
+  }
 }

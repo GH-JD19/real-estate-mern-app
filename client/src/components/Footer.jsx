@@ -1,29 +1,40 @@
+import React, { useState, useCallback, useMemo } from "react"
 import { NavLink } from "react-router-dom"
 import { FaFacebookF, FaInstagram, FaTwitter, FaLinkedinIn } from "react-icons/fa"
 import { useAuth } from "../context/AuthContext"
-import { useState } from "react"
 import toast from "react-hot-toast"
 
 function Footer() {
-
   const { user } = useAuth()
 
   const [email, setEmail] = useState("")
   const [loading, setLoading] = useState(false)
 
-  const linkClass =
-    "block text-sm hover:text-blue-600 hover:translate-x-1 hover:font-medium transition-all duration-200";
+  // ✅ API Base URL (Production Ready)
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000"
 
-  // ✅ Subscribe Handler (Backend Connected)
-  const handleSubscribe = async () => {
-    if (!email) {
-      return toast.error("Please enter email")
+  const linkClass =
+    "block text-sm hover:text-blue-600 hover:translate-x-1 hover:font-medium transition-all duration-200"
+
+  // ✅ Email validation
+  const isValidEmail = useCallback((email) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+  }, [])
+
+  // ✅ Subscribe Handler
+  const handleSubscribe = useCallback(async () => {
+    if (!email.trim()) {
+      return toast.error("Please enter your email")
+    }
+
+    if (!isValidEmail(email)) {
+      return toast.error("Please enter a valid email")
     }
 
     try {
       setLoading(true)
 
-      const res = await fetch("http://localhost:5000/api/subscribe", {
+      const res = await fetch(`${API_URL}/api/subscribe`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -31,25 +42,77 @@ function Footer() {
         body: JSON.stringify({ email }),
       })
 
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
 
       if (!res.ok) {
-        throw new Error(data.message)
+        throw new Error(data.message || "Subscription failed")
       }
 
       toast.success("Subscribed successfully 🎉")
       setEmail("")
-
     } catch (error) {
       toast.error(error.message || "Something went wrong")
     } finally {
       setLoading(false)
     }
-  }
+  }, [email, API_URL, isValidEmail])
+
+  // ✅ Handle Enter key submit
+  const handleKeyDown = useCallback(
+    (e) => {
+      if (e.key === "Enter") {
+        handleSubscribe()
+      }
+    },
+    [handleSubscribe]
+  )
+
+  // ✅ Role-based links (scalable & clean)
+  const links = useMemo(() => {
+    if (!user) {
+      return [
+        { to: "/", label: "Home" },
+        { to: "/about", label: "About" },
+        { to: "/terms", label: "Terms" },
+        { to: "/privacy", label: "Privacy" },
+        { to: "/login", label: "Login" },
+        { to: "/register", label: "Register" },
+      ]
+    }
+
+    if (user.role === "user") {
+      return [
+        { to: "/user-dashboard", label: "Dashboard" },
+        { to: "/user/saved", label: "Wishlist" },
+        { to: "/user/bookings", label: "My Visits" },
+        //{ to: "/user/profile", label: "Profile" },
+      ]
+    }
+
+    if (user.role === "agent") {
+      return [
+        { to: "/agent-dashboard", label: "Dashboard" },
+        { to: "/agent/manage-properties", label: "Manage Properties" },
+        { to: "/agent/bookings", label: "Bookings" },
+      ]
+    }
+
+    if (user.role === "admin") {
+      return [
+        { to: "/admin-dashboard", label: "Dashboard" },
+        { to: "/admin/properties", label: "Properties" },
+        { to: "/admin/users", label: "Users" },
+        { to: "/admin/analytics", label: "Analytics" },
+      ]
+    }
+
+    return []
+  }, [user])
 
   return (
     <footer className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
 
+      {/* NEWSLETTER */}
       <div className="max-w-7xl mx-auto px-6 pt-12">
         <div className="bg-blue-600 text-white rounded-2xl p-8 flex flex-col md:flex-row justify-between items-center gap-4">
           
@@ -65,25 +128,35 @@ function Footer() {
           <div className="flex w-full md:w-auto shadow-md rounded-lg overflow-hidden">
             <input
               type="email"
+              aria-label="Email address"
               placeholder="Enter your email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="px-4 py-2 w-full md:w-64 text-black outline-none focus:ring-2 focus:ring-blue-400"
+              onKeyDown={handleKeyDown}
+              disabled={loading}
+              className="px-4 py-2 w-full md:w-64 text-black outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-70"
             />
+
             <button
               onClick={handleSubscribe}
               disabled={loading}
-              className="bg-black px-5 text-white text-sm hover:bg-gray-900 transition focus:ring-2 focus:ring-black active:scale-95"
+              aria-busy={loading}
+              className="bg-black px-5 text-white text-sm hover:bg-gray-900 transition focus:ring-2 focus:ring-black active:scale-95 disabled:opacity-70 flex items-center justify-center min-w-[100px]"
             >
-              {loading ? "..." : "Subscribe"}
+              {loading ? (
+                <span className="animate-pulse">Sending...</span>
+              ) : (
+                "Subscribe"
+              )}
             </button>
           </div>
-
         </div>
       </div>
 
+      {/* DIVIDER */}
       <div className="border-t border-gray-100 dark:border-gray-800 mt-12"></div>
 
+      {/* MAIN FOOTER */}
       <div className="max-w-7xl mx-auto px-6 py-16 grid gap-12 md:grid-cols-3">
 
         {/* BRAND */}
@@ -98,59 +171,25 @@ function Footer() {
           </p>
         </div>
 
-        {/* QUICK LINKS */}
+        {/* LINKS */}
         <div>
-
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wider mb-5">
             Quick Links
           </h3>
 
           <ul className="space-y-3 text-gray-600 dark:text-gray-400">
-
-            {!user && (
-              <>
-                <li><NavLink to="/" className={linkClass}>Home</NavLink></li>
-                <li><NavLink to="/about" className={linkClass}>About</NavLink></li>
-                <li><NavLink to="/terms" className={linkClass}>Terms</NavLink></li>
-                <li><NavLink to="/privacy" className={linkClass}>Privacy</NavLink></li>
-                <li><NavLink to="/login" className={linkClass}>Login</NavLink></li>
-                <li><NavLink to="/register" className={linkClass}>Register</NavLink></li>
-              </>
-            )}
-
-            {user?.role === "user" && (
-              <>
-                <li><NavLink to="/user-dashboard" className={linkClass}>Dashboard</NavLink></li>
-                <li><NavLink to="/user/saved" className={linkClass}>Wishlist</NavLink></li>
-                <li><NavLink to="/user/bookings" className={linkClass}>My Visits</NavLink></li>
-                <li><NavLink to="/user/profile" className={linkClass}>Profile</NavLink></li>
-              </>
-            )}
-
-            {user?.role === "agent" && (
-              <>
-                <li><NavLink to="/agent-dashboard" className={linkClass}>Dashboard</NavLink></li>
-                <li><NavLink to="/agent/manage-properties" className={linkClass}>Manage Properties</NavLink></li>
-                <li><NavLink to="/agent/bookings" className={linkClass}>Bookings</NavLink></li>
-              </>
-            )}
-
-            {user?.role === "admin" && (
-              <>
-                <li><NavLink to="/admin-dashboard" className={linkClass}>Dashboard</NavLink></li>
-                <li><NavLink to="/admin/properties" className={linkClass}>Properties</NavLink></li>
-                <li><NavLink to="/admin/users" className={linkClass}>Users</NavLink></li>
-                <li><NavLink to="/admin/analytics" className={linkClass}>Analytics</NavLink></li>
-              </>
-            )}
-
+            {links.map((link) => (
+              <li key={link.to}>
+                <NavLink to={link.to} className={linkClass}>
+                  {link.label}
+                </NavLink>
+              </li>
+            ))}
           </ul>
-
         </div>
 
         {/* CONTACT */}
         <div>
-
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wider mb-5">
             Contact
           </h3>
@@ -163,60 +202,34 @@ function Footer() {
             +91 99999 12345
           </p>
 
-          {/* SOCIAL ICONS */}
+          {/* SOCIAL */}
           <div className="flex gap-4 mt-6">
-
-            <a
-              href="https://www.facebook.com/"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Facebook"
-              className="p-2.5 cursor-pointer rounded-full border border-gray-200 dark:border-gray-700 hover:bg-blue-600 hover:text-white hover:scale-110 hover:border-blue-600 transition-all duration-300"
-            >
-              <FaFacebookF size={14} />
-            </a>
-
-            <a
-              href="https://www.instagram.com/"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Instagram"
-              className="p-2.5 cursor-pointer rounded-full border border-gray-200 dark:border-gray-700 hover:bg-blue-600 hover:text-white hover:scale-110 hover:border-blue-600 transition-all duration-300"
-            >
-              <FaInstagram size={14} />
-            </a>
-
-            <a
-              href="https://twitter.com/"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Twitter"
-              className="p-2.5 cursor-pointer rounded-full border border-gray-200 dark:border-gray-700 hover:bg-blue-600 hover:text-white hover:scale-110 hover:border-blue-600 transition-all duration-300"
-            >
-              <FaTwitter size={14} />
-            </a>
-
-            <a
-              href="https://www.linkedin.com/"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="LinkedIn"
-              className="p-2.5 cursor-pointer rounded-full border border-gray-200 dark:border-gray-700 hover:bg-blue-600 hover:text-white hover:scale-110 hover:border-blue-600 transition-all duration-300"
-            >
-              <FaLinkedinIn size={14} />
-            </a>
-
+            {[
+              { href: "https://www.facebook.com/", icon: <FaFacebookF size={14} />, label: "Facebook" },
+              { href: "https://www.instagram.com/", icon: <FaInstagram size={14} />, label: "Instagram" },
+              { href: "https://twitter.com/", icon: <FaTwitter size={14} />, label: "Twitter" },
+              { href: "https://www.linkedin.com/", icon: <FaLinkedinIn size={14} />, label: "LinkedIn" },
+            ].map((item, i) => (
+              <a
+                key={i}
+                href={item.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={item.label}
+                className="p-2.5 rounded-full border border-gray-200 dark:border-gray-700 hover:bg-blue-600 hover:text-white hover:scale-110 hover:border-blue-600 transition-all duration-300"
+              >
+                {item.icon}
+              </a>
+            ))}
           </div>
-
         </div>
 
       </div>
 
-      {/* BOTTOM BAR */}
+      {/* BOTTOM */}
       <div className="border-t border-gray-200 dark:border-gray-700 py-5 text-center text-gray-500 text-xs tracking-wide">
         © {new Date().getFullYear()} RealEstate. All rights reserved.
       </div>
-
     </footer>
   )
 }

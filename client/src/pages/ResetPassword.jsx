@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useCallback } from "react"
 import { useParams, Link, useNavigate } from "react-router-dom"
 import { FaEye, FaEyeSlash } from "react-icons/fa"
 import api from "../services/api"
@@ -23,16 +23,16 @@ function ResetPassword() {
     password.length >= 6 &&
     password === confirmPassword
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault()
     setError("")
 
-    if (password.length < 6) {
+    if (!password || password.length < 6) {
       toast.error("Password must be at least 6 characters")
       return
     }
 
-    if (password !== confirmPassword) {
+    if (!confirmPassword || password !== confirmPassword) {
       toast.error("Passwords do not match")
       return
     }
@@ -63,10 +63,10 @@ function ResetPassword() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [password, confirmPassword, token, navigate])
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center bg-gradient-to-br from-gray-50 via-blue-50 to-gray-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 px-4">
+    <section className="min-h-[80vh] flex items-center justify-center bg-gradient-to-br from-gray-50 via-blue-50 to-gray-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 px-4">
 
       <div className="w-full max-w-5xl grid md:grid-cols-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur-xl border border-gray-200 dark:border-gray-700 rounded-3xl shadow-2xl overflow-hidden">
 
@@ -90,59 +90,73 @@ function ResetPassword() {
 
           {!success ? (
             <>
-              <h2 className="text-3xl font-semibold mb-2 text-gray-900 dark:text-white">
-                Reset Password
-              </h2>
+              <header>
+                <h2 className="text-3xl font-semibold mb-2 text-gray-900 dark:text-white">
+                  Reset Password
+                </h2>
 
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-                Create a new secure password
-              </p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+                  Create a new secure password
+                </p>
+              </header>
 
-              <form onSubmit={handleSubmit} className="space-y-5">
+              <form onSubmit={handleSubmit} className="space-y-5" noValidate>
 
                 {/* PASSWORD */}
-                <div className="relative">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    placeholder="New Password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-3 pr-10 py-3 border rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-blue-500 outline-none dark:bg-gray-900 shadow-sm"
-                  />
+                <div>
+                  <label htmlFor="password" className="sr-only">
+                    New Password
+                  </label>
 
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-3 text-gray-500"
-                  >
-                    {showPassword ? <FaEyeSlash /> : <FaEye />}
-                  </button>
+                  <div className="relative">
+                    <input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="New Password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full pl-3 pr-10 py-3 border rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-blue-500 outline-none dark:bg-gray-900 shadow-sm"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((p) => !p)}
+                      aria-label="Toggle password visibility"
+                      className="absolute right-3 top-3 text-gray-500"
+                    >
+                      {showPassword ? <FaEyeSlash /> : <FaEye />}
+                    </button>
+                  </div>
                 </div>
 
                 {/* CONFIRM PASSWORD */}
-                <div className="relative">
-                  <input
-                    type={showConfirmPassword ? "text" : "password"}
-                    placeholder="Confirm Password"
-                    required
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="w-full pl-3 pr-10 py-3 border rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-blue-500 outline-none dark:bg-gray-900 shadow-sm"
-                  />
+                <div>
+                  <label htmlFor="confirmPassword" className="sr-only">
+                    Confirm Password
+                  </label>
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setShowConfirmPassword(!showConfirmPassword)
-                    }
-                    className="absolute right-3 top-3 text-gray-500"
-                  >
-                    {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
-                  </button>
+                  <div className="relative">
+                    <input
+                      id="confirmPassword"
+                      type={showConfirmPassword ? "text" : "password"}
+                      placeholder="Confirm Password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="w-full pl-3 pr-10 py-3 border rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-blue-500 outline-none dark:bg-gray-900 shadow-sm"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword((p) => !p)}
+                      aria-label="Toggle confirm password visibility"
+                      className="absolute right-3 top-3 text-gray-500"
+                    >
+                      {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
+                    </button>
+                  </div>
                 </div>
 
-                {/* INLINE ERROR */}
+                {/* ERROR */}
                 {error && (
                   <p className="text-red-500 text-sm flex items-center gap-1">
                     ⚠️ {error}
@@ -153,9 +167,9 @@ function ResetPassword() {
                 <button
                   type="submit"
                   disabled={loading || !isFormValid}
-                  className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 active:scale-[0.98] transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 active:scale-[0.98] transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2"
                 >
-                  Reset Password
+                  {loading ? "Updating..." : "Reset Password"}
                 </button>
 
               </form>
@@ -177,7 +191,7 @@ function ResetPassword() {
 
               <Link
                 to="/login"
-                className="inline-block bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-blue-700 transition shadow-md hover:shadow-lg"
+                className="inline-block bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-blue-700 transition shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2"
               >
                 Go to Login
               </Link>
@@ -189,7 +203,7 @@ function ResetPassword() {
 
       </div>
 
-    </div>
+    </section>
   )
 }
 

@@ -1,21 +1,44 @@
+import React, { memo, useMemo } from "react"
 import { Navigate } from "react-router-dom"
 
-function RoleProtectedRoute({ children, allowedRoles }) {
-  const token =
-    localStorage.getItem("accessToken") ||
-    sessionStorage.getItem("accessToken")
+function RoleProtectedRoute({ children, allowedRoles = [] }) {
 
-  const user = JSON.parse(localStorage.getItem("user"))
+  // ✅ Safe token retrieval
+  const token = useMemo(() => {
+    return (
+      localStorage.getItem("accessToken") ||
+      sessionStorage.getItem("accessToken")
+    )
+  }, [])
 
+  // ✅ Safe user parsing (no crash)
+  const user = useMemo(() => {
+    try {
+      const storedUser = localStorage.getItem("user")
+      return storedUser ? JSON.parse(storedUser) : null
+    } catch (err) {
+      console.error("Invalid user data in storage:", err)
+      return null
+    }
+  }, [])
+
+  // ❌ Not logged in
   if (!token) {
-    return <Navigate to="/login" />
+    return <Navigate to="/login" replace />
   }
 
-  if (!allowedRoles.includes(user?.role)) {
-    return <Navigate to="/" />
+  // ❌ Invalid user or role mismatch
+  if (
+    !user ||
+    !user.role ||
+    !Array.isArray(allowedRoles) ||
+    !allowedRoles.includes(user.role)
+  ) {
+    return <Navigate to="/" replace />
   }
 
+  // ✅ Authorized
   return children
 }
 
-export default RoleProtectedRoute
+export default memo(RoleProtectedRoute)

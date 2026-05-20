@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import { FaArrowLeft } from "react-icons/fa"
 import api from "../../services/api"
-import socket from "../../services/socket"
+import { io } from "socket.io-client"
 import { toast } from "react-toastify"
+
+const SOCKET_URL = import.meta.env.VITE_API_URL || "http://localhost:5000"
 
 const AdminViewProperty = () => {
 
@@ -17,38 +19,62 @@ const AdminViewProperty = () => {
   const [rejectReason, setRejectReason] = useState("")
   const [showRejectBox, setShowRejectBox] = useState(false)
   const [adminNote, setAdminNote] = useState("")
+  const [actionLoading, setActionLoading] = useState(false)
 
+  const socketRef = useRef(null)
+  const debounceRef = useRef(null)
+  const abortRef = useRef(null)
+
+  // ================= FETCH =================
   const fetchProperty = async () => {
     try {
-      const res = await api.get(`/properties/${id}`)
-      setProperty(res.data.property)
-      setAdminNote(res.data.property.adminNote || "")
-    } catch {
-      toast.error("Failed to load property")
+      abortRef.current?.abort()
+      abortRef.current = new AbortController()
+
+      const res = await api.get(`/properties/${id}`, {
+        signal: abortRef.current.signal
+      })
+
+      const prop = res.data?.property || null
+
+      setProperty(prop)
+      setAdminNote(prop?.adminNote || "")
+      setActiveImage(0)
+
+    } catch (err) {
+      if (err.name !== "CanceledError") {
+        toast.error("Failed to load property")
+      }
     } finally {
       setLoading(false)
     }
   }
 
-  // 🚀 REAL-TIME + INITIAL LOAD
+  // ================= SOCKET =================
   useEffect(() => {
 
     fetchProperty()
 
-    if (!socket.connected) {
-      socket.connect()
-      socket.emit("joinAdmin")
-    }
+    const newSocket = io(SOCKET_URL, { withCredentials: true })
+    socketRef.current = newSocket
+
+    newSocket.emit("joinAdmin")
 
     const handleUpdate = () => {
-      console.log("Realtime property update")
-      fetchProperty()
+      clearTimeout(debounceRef.current)
+
+      debounceRef.current = setTimeout(() => {
+        fetchProperty()
+      }, 500)
     }
 
-    socket.on("dashboard:update", handleUpdate)
+    newSocket.on("dashboard:update", handleUpdate)
 
     return () => {
-      socket.off("dashboard:update", handleUpdate)
+      clearTimeout(debounceRef.current)
+      newSocket.off("dashboard:update", handleUpdate)
+      newSocket.disconnect()
+      abortRef.current?.abort()
     }
 
   }, [id])
@@ -60,74 +86,72 @@ const AdminViewProperty = () => {
     return value
   }
 
-  const handleApprove = async () => {
+  // ================= SAFE ACTION =================
+  const safeAction = async (fn, successMsg, errorMsg) => {
     try {
-      await api.put(`/properties/admin/status/${id}`, {
-        status: "APPROVED",
-        adminNote
-      })
-      toast.success("Property Approved")
+      setActionLoading(true)
+      await fn()
+      toast.success(successMsg)
       fetchProperty()
     } catch {
-      toast.error("Approval failed")
+      toast.error(errorMsg)
+    } finally {
+      setActionLoading(false)
     }
   }
+
+  const handleApprove = () =>
+    safeAction(
+      () => api.put(`/properties/admin/status/${id}`, { status: "APPROVED", adminNote }),
+      "Property Approved",
+      "Approval failed"
+    )
 
   const handleReject = async () => {
     if (!rejectReason.trim()) {
-      toast.error("Please enter rejection reason")
-      return
+      return toast.error("Please enter rejection reason")
     }
 
-    try {
-      await api.put(`/properties/admin/status/${id}`, {
+    safeAction(
+      () => api.put(`/properties/admin/status/${id}`, {
         status: "REJECTED",
         rejectionReason: rejectReason,
         adminNote
-      })
+      }),
+      "Property Rejected",
+      "Rejection failed"
+    )
 
-      toast.error("Property Rejected")
-      setShowRejectBox(false)
-      setRejectReason("")
-      fetchProperty()
-    } catch {
-      toast.error("Rejection failed")
-    }
+    setShowRejectBox(false)
+    setRejectReason("")
   }
 
-  const handleFeature = async () => {
-    try {
-      await api.put(`/properties/admin/feature/${id}`, {
-        featured: true
-      })
-      toast.success("Marked as Featured")
-      fetchProperty()
-    } catch {
-      toast.error("Failed to mark as featured")
-    }
-  }
+  const handleFeature = () =>
+    safeAction(
+      () => api.put(`/properties/admin/feature/${id}`, { featured: true }),
+      "Marked as Featured",
+      "Failed to mark as featured"
+    )
 
-  const handleUnfeature = async () => {
-    try {
-      await api.put(`/properties/admin/feature/${id}`, {
-        featured: false
-      })
-      toast.success("Removed from Featured")
-      fetchProperty()
-    } catch {
-      toast.error("Failed to remove featured")
-    }
-  }
+  const handleUnfeature = () =>
+    safeAction(
+      () => api.put(`/properties/admin/feature/${id}`, { featured: false }),
+      "Removed from Featured",
+      "Failed to remove featured"
+    )
 
   const handleDelete = async () => {
     if (!window.confirm("Are you sure you want to delete this property?")) return
 
     try {
+      setActionLoading(true)
       await api.delete(`/properties/admin/${id}`)
       toast.success("Property Deleted")
       navigate("/admin/properties")
     } catch {
       toast.error("Delete failed")
+    } finally {
+      setActionLoading(false)
     }
   }
 
@@ -152,17 +176,17 @@ const AdminViewProperty = () => {
     </div>
   )
 
+  const images = property?.media?.images || []
   const isLand = property.type === "LAND" || property.type === "PLOT"
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-900 dark:to-gray-950 p-6 text-gray-900 dark:text-white">
+    <div className="min-h-screen p-6">
 
       {/* HEADER */}
       <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
 
         <div>
           <h2 className="text-3xl font-bold flex flex-wrap items-center gap-3">
-
             {property.title}
 
             {property.featured && new Date(property.featuredTill) > new Date() && (
@@ -170,7 +194,6 @@ const AdminViewProperty = () => {
                 FEATURED
               </span>
             )}
-
           </h2>
 
           {property.featured && property.featuredTill && (
@@ -182,7 +205,7 @@ const AdminViewProperty = () => {
 
         <button
           onClick={() => navigate("/admin/properties")}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-300 dark:bg-gray-700 rounded-lg hover:bg-gray-400 dark:hover:bg-gray-600 transition"
+          className="flex items-center gap-2 px-4 py-2 bg-gray-300 dark:bg-gray-700 rounded-lg"
         >
           <FaArrowLeft /> Back
         </button>
@@ -191,7 +214,7 @@ const AdminViewProperty = () => {
 
       {/* STATUS */}
       <div className="mb-6">
-        <span className={`text-white px-4 py-1 rounded-full text-sm shadow ${getStatusBadge(property.status)}`}>
+        <span className={`text-white px-4 py-1 rounded-full text-sm ${getStatusBadge(property.status)}`}>
           {property.status}
         </span>
       </div>
@@ -201,14 +224,14 @@ const AdminViewProperty = () => {
         {/* IMAGE SECTION */}
         <div>
           <img
-            src={property.media?.images?.[activeImage] || "/no-image.jpg"}
+            src={images[activeImage] || "/no-image.jpg"}
             alt="Property"
             className="w-full h-96 object-cover rounded-2xl shadow"
           />
 
-          {property.media?.images?.length > 0 && (
+          {images.length > 0 && (
             <div className="flex gap-2 mt-4 overflow-x-auto">
-              {property.media.images.map((img, index) => (
+              {images.map((img, index) => (
                 <img
                   key={index}
                   src={img}
@@ -304,10 +327,13 @@ const AdminViewProperty = () => {
                 className="w-full p-2 rounded border mb-3 text-black"
               />
               <div className="flex gap-3">
-                <button onClick={handleReject} className="bg-red-600 text-white px-4 py-2 rounded">
+                <button disabled={actionLoading}
+                  onClick={handleReject}
+                  className="bg-red-600 text-white px-4 py-2 rounded">
                   Confirm Reject
                 </button>
-                <button onClick={() => setShowRejectBox(false)} className="bg-gray-500 text-white px-4 py-2 rounded">
+                <button onClick={() => setShowRejectBox(false)}
+                  className="bg-gray-500 text-white px-4 py-2 rounded">
                   Cancel
                 </button>
               </div>
@@ -319,10 +345,14 @@ const AdminViewProperty = () => {
 
             {property.status === "PENDING" && (
               <>
-                <button onClick={handleApprove} className="bg-green-600 text-white px-5 py-2 rounded-lg">
+                <button disabled={actionLoading}
+                  onClick={handleApprove}
+                  className="bg-green-600 text-white px-5 py-2 rounded-lg">
                   Approve
                 </button>
-                <button onClick={() => setShowRejectBox(true)} className="bg-red-600 text-white px-5 py-2 rounded-lg">
+                <button disabled={actionLoading}
+                  onClick={() => setShowRejectBox(true)}
+                  className="bg-red-600 text-white px-5 py-2 rounded-lg">
                   Reject
                 </button>
               </>
@@ -331,18 +361,24 @@ const AdminViewProperty = () => {
             {property.status === "APPROVED" && (
               <>
                 {!property.featured ? (
-                  <button onClick={handleFeature} className="bg-yellow-500 text-white px-5 py-2 rounded-lg">
+                  <button disabled={actionLoading}
+                    onClick={handleFeature}
+                    className="bg-yellow-500 text-white px-5 py-2 rounded-lg">
                     Mark as Featured
                   </button>
                 ) : (
-                  <button onClick={handleUnfeature} className="bg-purple-600 text-white px-5 py-2 rounded-lg">
+                  <button disabled={actionLoading}
+                    onClick={handleUnfeature}
+                    className="bg-purple-600 text-white px-5 py-2 rounded-lg">
                     Remove Featured
                   </button>
                 )}
               </>
             )}
 
-            <button onClick={handleDelete} className="bg-gray-800 text-white px-5 py-2 rounded-lg">
+            <button disabled={actionLoading}
+              onClick={handleDelete}
+              className="bg-gray-800 text-white px-5 py-2 rounded-lg">
               Delete
             </button>
 

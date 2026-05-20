@@ -1,5 +1,17 @@
+const mongoose = require("mongoose")
 const Inquiry = require("../models/Inquiry")
 const Property = require("../models/Property")
+
+// ============================
+// HELPERS
+// ============================
+const isValidId = (id) => mongoose.Types.ObjectId.isValid(id)
+
+const ALLOWED_STATUS = ["PENDING", "CONTACTED", "RESOLVED"]
+
+const isValidPhone = (phone) =>
+  /^[6-9]\d{9}$/.test(phone) // simple India-safe validation
+
 
 // ============================
 // CREATE INQUIRY (User)
@@ -8,7 +20,28 @@ exports.createInquiry = async (req, res) => {
   try {
 
     const { message, phone } = req.body
-    const propertyId = req.params.propertyId
+    const { propertyId } = req.params
+
+    if (!isValidId(propertyId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid property ID"
+      })
+    }
+
+    if (!message || message.trim().length < 5) {
+      return res.status(400).json({
+        success: false,
+        message: "Message is too short"
+      })
+    }
+
+    if (!phone || !isValidPhone(phone)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid phone number"
+      })
+    }
 
     const property = await Property.findById(propertyId)
 
@@ -19,7 +52,6 @@ exports.createInquiry = async (req, res) => {
       })
     }
 
-    // prevent duplicate inquiry
     const existingInquiry = await Inquiry.findOne({
       user: req.user._id,
       property: propertyId
@@ -33,26 +65,25 @@ exports.createInquiry = async (req, res) => {
     }
 
     const inquiry = await Inquiry.create({
-      message,
+      message: message.trim(),
       phone,
       user: req.user._id,
       property: propertyId,
-      agent: property.createdBy
+      agent: property.createdBy,
+      status: "PENDING"
     })
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: "Inquiry sent successfully",
       inquiry
     })
 
-  } catch (error) {
-
-    res.status(500).json({
+  } catch {
+    return res.status(500).json({
       success: false,
-      message: error.message
+      message: "Server error"
     })
-
   }
 }
 
@@ -63,26 +94,38 @@ exports.createInquiry = async (req, res) => {
 exports.getAgentInquiries = async (req, res) => {
   try {
 
-    const inquiries = await Inquiry.find({
-      agent: req.user._id
-    })
-      .populate("user", "name email phone")
-      .populate("property", "title price")
-      .sort({ createdAt: -1 })
+    let page = Number(req.query.page) || 1
+    let limit = Number(req.query.limit) || 10
 
-    res.status(200).json({
+    page = page < 1 ? 1 : page
+    limit = limit > 50 ? 50 : limit
+
+    const skip = (page - 1) * limit
+
+    const [inquiries, total] = await Promise.all([
+
+      Inquiry.find({ agent: req.user._id })
+        .populate("user", "name email phone")
+        .populate("property", "title price")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+
+      Inquiry.countDocuments({ agent: req.user._id })
+    ])
+
+    return res.status(200).json({
       success: true,
-      total: inquiries.length,
+      total,
+      totalPages: Math.ceil(total / limit),
       inquiries
     })
 
-  } catch (error) {
-
-    res.status(500).json({
+  } catch {
+    return res.status(500).json({
       success: false,
-      message: error.message
+      message: "Server error"
     })
-
   }
 }
 
@@ -92,21 +135,39 @@ exports.getAgentInquiries = async (req, res) => {
 // ============================
 exports.getAllInquiries = async (req, res) => {
   try {
-    const inquiries = await Inquiry.find()
-      .populate("user", "name email")
-      .populate("agent", "name email")
-      .populate("property", "title price")
 
-    res.status(200).json({
+    let page = Number(req.query.page) || 1
+    let limit = Number(req.query.limit) || 10
+
+    page = page < 1 ? 1 : page
+    limit = limit > 50 ? 50 : limit
+
+    const skip = (page - 1) * limit
+
+    const [inquiries, total] = await Promise.all([
+
+      Inquiry.find()
+        .populate("user", "name email")
+        .populate("agent", "name email")
+        .populate("property", "title price")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+
+      Inquiry.countDocuments()
+    ])
+
+    return res.status(200).json({
       success: true,
-      total: inquiries.length,
+      total,
+      totalPages: Math.ceil(total / limit),
       inquiries
     })
 
-  } catch (error) {
-    res.status(500).json({
+  } catch {
+    return res.status(500).json({
       success: false,
-      message: error.message
+      message: "Server error"
     })
   }
 }
@@ -117,7 +178,25 @@ exports.getAllInquiries = async (req, res) => {
 // ============================
 exports.updateInquiryStatus = async (req, res) => {
   try {
-    const inquiry = await Inquiry.findById(req.params.id)
+
+    const { id } = req.params
+    const { status } = req.body
+
+    if (!isValidId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid inquiry ID"
+      })
+    }
+
+    if (!status || !ALLOWED_STATUS.includes(status.toUpperCase())) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid status"
+      })
+    }
+
+    const inquiry = await Inquiry.findById(id)
 
     if (!inquiry) {
       return res.status(404).json({
@@ -126,7 +205,7 @@ exports.updateInquiryStatus = async (req, res) => {
       })
     }
 
-    // Agent can update only their inquiry
+    // Agent restriction
     if (
       req.user.role === "agent" &&
       inquiry.agent.toString() !== req.user._id.toString()
@@ -137,19 +216,19 @@ exports.updateInquiryStatus = async (req, res) => {
       })
     }
 
-    inquiry.status = req.body.status.toUpperCase()
+    inquiry.status = status.toUpperCase()
     await inquiry.save()
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: "Inquiry status updated",
       inquiry
     })
 
-  } catch (error) {
-    res.status(500).json({
+  } catch {
+    return res.status(500).json({
       success: false,
-      message: error.message
+      message: "Server error"
     })
   }
 }

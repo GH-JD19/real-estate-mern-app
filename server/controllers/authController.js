@@ -1,386 +1,348 @@
 const jwt = require("jsonwebtoken")
 const User = require("../models/User")
-const bcrypt = require("bcryptjs")
 const crypto = require("crypto")
 const sendEmail = require("../utils/sendEmail")
 const Session = require("../models/Session")
+const asyncHandler = require("../utils/asyncHandler")
 
-// ================= TOKEN GENERATORS =================
+// ================= HELPERS =================
 
-const generateAccessToken = (id) => {
-  return jwt.sign(
-    { id },
-    process.env.ACCESS_TOKEN_SECRET,
-    { expiresIn: "15m" }
-  )
+const generateAccessToken = (id) =>
+  jwt.sign({ id }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: "15m" })
+
+const generateRefreshToken = (id) =>
+  jwt.sign({ id }, process.env.REFRESH_TOKEN_SECRET, { expiresIn: "7d" })
+
+const cookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "strict",
+  maxAge: 7 * 24 * 60 * 60 * 1000,
 }
 
-const generateRefreshToken = (id) => {
-  return jwt.sign(
-    { id },
-    process.env.REFRESH_TOKEN_SECRET,
-    { expiresIn: "7d" }
-  )
-}
+const sanitizeUser = (user) => ({
+  _id: user._id,
+  name: user.name,
+  email: user.email,
+  phone: user.phone,
+  role: user.role,
+  isActive: user.isActive,
+  isBlocked: user.isBlocked,
+})
+
+const validateEmail = (email) =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+
 
 // ================= REGISTER =================
 
-exports.registerUser = async (req, res) => {
-  try {
-    const { name, address, email, phone, password, role } = req.body
+exports.registerUser = asyncHandler(async (req, res) => {
+  const { name, address, email, phone, password, role } = req.body
 
-    const emailExists = await User.findOne({ email })
-    if (emailExists) {
-      return res.status(400).json({
-        success: false,
-        field: "email",
-        message: "Email already registered",
-      })
-    }
-
-    const phoneExists = await User.findOne({ phone })
-    if (phoneExists) {
-      return res.status(400).json({
-        success: false,
-        field: "phone",
-        message: "Mobile number already registered",
-      })
-    }
-
-    const user = await User.create({
-      name,
-      address,
-      email,
-      phone,
-      password,
-      role: role || "user",
-      isBlocked: false,
-      isActive: false,
-    })
-
-    const accessToken = generateAccessToken(user._id)
-    const refreshToken = generateRefreshToken(user._id)
-
-    await Session.create({
-      userId: user._id,
-      refreshToken,
-      device: req.headers["user-agent"],
-      ip: req.ip,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-    })
-
-    res.status(201).json({
-      success: true,
-      message: "User registered successfully",
-      user,
-      accessToken,
-      refreshToken
-    })
-
-  } catch (error) {
-
-    if (error.code === 11000) {
-      const field = Object.keys(error.keyPattern)[0]
-
-      let message = ""
-
-      if (field === "email") message = "Email already registered"
-      else if (field === "phone") message = "Mobile number already registered"
-      else message = `${field} already exists`
-
-      return res.status(400).json({
-        success: false,
-        field,
-        message,
-      })
-    }
-
-    res.status(500).json({
-      success: false,
-      message: "Something went wrong",
-    })
+  if (!name || !email || !phone || !password) {
+    res.status(400)
+    throw new Error("All required fields must be provided")
   }
-}
+
+  if (!validateEmail(email)) {
+    res.status(400)
+    throw new Error("Invalid email format")
+  }
+
+  if (password.length < 6) {
+    res.status(400)
+    throw new Error("Password must be at least 6 characters")
+  }
+
+  const [emailExists, phoneExists] = await Promise.all([
+    User.findOne({ email }),
+    User.findOne({ phone }),
+  ])
+
+  if (emailExists || phoneExists) {
+    res.status(400)
+    throw new Error("User already exists")
+  }
+
+  const user = await User.create({
+    name,
+    address,
+    email,
+    phone,
+    password,
+    role: role || "user",
+    isBlocked: false,
+    isActive: false,
+  })
+
+  const accessToken = generateAccessToken(user._id)
+  const refreshToken = generateRefreshToken(user._id)
+
+  await Session.create({
+    userId: user._id,
+    refreshToken,
+    device: req.headers["user-agent"],
+    ip: req.ip,
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+  })
+
+  res.cookie("refreshToken", refreshToken, cookieOptions)
+
+  res.status(201).json({
+    success: true,
+    message: "User registered successfully",
+    user: sanitizeUser(user),
+    accessToken,
+  })
+})
+
 
 // ================= LOGIN =================
 
-exports.loginUser = async (req, res) => {
-  try {
-    const { email, password } = req.body
+exports.loginUser = asyncHandler(async (req, res) => {
+  const { email, password } = req.body
 
-    const user = await User.findOne({ email }).select("+password")
-
-    if (!user) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid email or password",
-      })
-    }
-
-    if (!user.isActive) {
-      return res.status(403).json({
-        success: false,
-        message: "Your account is pending approval"
-      })
-    }
-
-    if (user.isBlocked) {
-      return res.status(403).json({
-        success: false,
-        message: "Your account has been blocked",
-      })
-    }
-
-    const isMatch = await user.matchPassword(password)
-
-    if (!isMatch) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid email or password",
-      })
-    }
-
-    const accessToken = generateAccessToken(user._id)
-    const refreshToken = generateRefreshToken(user._id)
-
-    await Session.create({
-      userId: user._id,
-      refreshToken,
-      device: req.headers["user-agent"],
-      ip: req.ip,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-    })
-
-    res.status(200).json({
-      success: true,
-      message: "Login successful",
-      user,
-      accessToken,
-      refreshToken
-    })
-
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    })
+  if (!email || !password) {
+    res.status(400)
+    throw new Error("Email and password are required")
   }
-}
 
-// ================= REFRESH TOKEN =================
+  const user = await User.findOne({ email }).select("+password")
 
-exports.refreshToken = async (req, res) => {
-  try {
-    const { refreshToken } = req.body
-
-    if (!refreshToken) {
-      return res.status(401).json({ success: false, message: "No token" })
-    }
-
-    const session = await Session.findOne({ refreshToken })
-
-    if (!session) {
-      return res.status(403).json({ success: false, message: "Invalid session" })
-    }
-
-    const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET)
-
-    const newAccessToken = generateAccessToken(decoded.id)
-
-    res.status(200).json({
-      success: true,
-      accessToken: newAccessToken
-    })
-
-  } catch (error) {
-    return res.status(403).json({
-      success: false,
-      message: "Refresh token expired"
-    })
+  if (!user || !(await user.matchPassword(password))) {
+    res.status(400)
+    throw new Error("Invalid email or password")
   }
-}
+
+  if (!user.isActive) {
+    res.status(403)
+    throw new Error("Account pending approval")
+  }
+
+  if (user.isBlocked) {
+    res.status(403)
+    throw new Error("Account is blocked")
+  }
+
+  const accessToken = generateAccessToken(user._id)
+  const refreshToken = generateRefreshToken(user._id)
+
+  await Session.create({
+    userId: user._id,
+    refreshToken,
+    device: req.headers["user-agent"],
+    ip: req.ip,
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+  })
+
+  res.cookie("refreshToken", refreshToken, cookieOptions)
+
+  res.status(200).json({
+    success: true,
+    message: "Login successful",
+    user: sanitizeUser(user),
+    accessToken,
+  })
+})
+
+
+// ================= REFRESH TOKEN (ROTATION) =================
+
+exports.refreshToken = asyncHandler(async (req, res) => {
+  const token = req.cookies.refreshToken
+
+  if (!token) {
+    res.status(401)
+    throw new Error("Unauthorized")
+  }
+
+  const session = await Session.findOne({ refreshToken: token })
+
+  if (!session || session.expiresAt < new Date()) {
+    res.status(403)
+    throw new Error("Session expired")
+  }
+
+  let decoded
+  try {
+    decoded = jwt.verify(token, process.env.REFRESH_TOKEN_SECRET)
+  } catch {
+    res.status(403)
+    throw new Error("Invalid token")
+  }
+
+  // 🔁 ROTATE TOKEN
+  const newRefreshToken = generateRefreshToken(decoded.id)
+
+  session.refreshToken = newRefreshToken
+  session.expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+  await session.save()
+
+  const newAccessToken = generateAccessToken(decoded.id)
+
+  res.cookie("refreshToken", newRefreshToken, cookieOptions)
+
+  res.json({
+    success: true,
+    accessToken: newAccessToken,
+  })
+})
+
 
 // ================= LOGOUT =================
 
-exports.logoutUser = async (req, res) => {
-  const { refreshToken } = req.body
+exports.logoutUser = asyncHandler(async (req, res) => {
+  const token = req.cookies.refreshToken
 
-  await Session.deleteOne({ refreshToken })
+  if (token) {
+    await Session.deleteOne({ refreshToken: token })
+  }
+
+  res.clearCookie("refreshToken", cookieOptions)
 
   res.json({
     success: true,
-    message: "Logged out successfully"
+    message: "Logged out successfully",
   })
-}
+})
+
 
 // ================= LOGOUT ALL =================
 
-exports.logoutAllDevices = async (req, res) => {
+exports.logoutAllDevices = asyncHandler(async (req, res) => {
   await Session.deleteMany({ userId: req.user._id })
+
+  res.clearCookie("refreshToken", cookieOptions)
 
   res.json({
     success: true,
-    message: "Logged out from all devices"
+    message: "Logged out from all devices",
   })
-}
+})
+
 
 // ================= FORGOT PASSWORD =================
 
-exports.forgotPassword = async (req, res) => {
-  try {
-    const { email } = req.body
+exports.forgotPassword = asyncHandler(async (req, res) => {
+  const { email } = req.body
 
-    const user = await User.findOne({ email })
+  const user = await User.findOne({ email })
 
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "No user found with this email"
-      })
-    }
-
-    const resetToken = crypto.randomBytes(20).toString("hex")
-
-    user.resetPasswordToken = crypto
-      .createHash("sha256")
-      .update(resetToken)
-      .digest("hex")
-
-    user.resetPasswordExpire = Date.now() + 10 * 60 * 1000
-
-    await user.save({ validateBeforeSave: false })
-
-    const resetUrl = `${process.env.CLIENT_URL}/reset-password/${resetToken}`
-
-    const message = `
-Password Reset Request
-
-Click the link below to reset your password:
-
-${resetUrl}
-
-This link will expire in 10 minutes.
-`
-
-    await sendEmail({
-      email: user.email,
-      subject: "Reset Password",
-      message
-    })
-
-    res.status(200).json({
+  // ✅ Prevent email enumeration
+  if (!user) {
+    return res.json({
       success: true,
-      message: "Reset link sent to email"
-    })
-
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
+      message: "If email exists, reset link sent",
     })
   }
-}
+
+  const resetToken = crypto.randomBytes(20).toString("hex")
+
+  user.resetPasswordToken = crypto
+    .createHash("sha256")
+    .update(resetToken)
+    .digest("hex")
+
+  user.resetPasswordExpire = Date.now() + 10 * 60 * 1000
+
+  await user.save({ validateBeforeSave: false })
+
+  const resetUrl = `${process.env.CLIENT_URL}/reset-password/${resetToken}`
+
+  const message = `Reset your password:\n${resetUrl}\nValid for 10 minutes.`
+
+  sendEmail({
+    email: user.email,
+    subject: "Password Reset",
+    message,
+  }).catch(() => {})
+
+  res.json({
+    success: true,
+    message: "If email exists, reset link sent",
+  })
+})
+
 
 // ================= RESET PASSWORD =================
 
-exports.resetPassword = async (req, res) => {
-  try {
-    const resetPasswordToken = crypto
-      .createHash("sha256")
-      .update(req.params.token)
-      .digest("hex")
+exports.resetPassword = asyncHandler(async (req, res) => {
+  const token = crypto
+    .createHash("sha256")
+    .update(req.params.token)
+    .digest("hex")
 
-    const user = await User.findOne({
-      resetPasswordToken,
-      resetPasswordExpire: { $gt: Date.now() }
-    })
+  const user = await User.findOne({
+    resetPasswordToken: token,
+    resetPasswordExpire: { $gt: Date.now() },
+  })
 
-    if (!user) {
-      return res.status(400).json({
-        success: false,
-        message: "Token is invalid or expired"
-      })
-    }
-
-    user.password = req.body.password
-    user.resetPasswordToken = undefined
-    user.resetPasswordExpire = undefined
-
-    await user.save()
-
-    res.status(200).json({
-      success: true,
-      message: "Password reset successful"
-    })
-
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    })
+  if (!user) {
+    res.status(400)
+    throw new Error("Invalid or expired token")
   }
-}
+
+  if (!req.body.password || req.body.password.length < 6) {
+    res.status(400)
+    throw new Error("Password must be at least 6 characters")
+  }
+
+  user.password = req.body.password
+  user.resetPasswordToken = undefined
+  user.resetPasswordExpire = undefined
+
+  await user.save()
+
+  // 🔥 invalidate all sessions after password reset
+  await Session.deleteMany({ userId: user._id })
+
+  res.json({
+    success: true,
+    message: "Password reset successful",
+  })
+})
+
 
 // ================= GET ME =================
 
-exports.getMe = async (req, res) => {
-  try {
-    if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        message: "User not found"
-      })
-    }
-
-    res.status(200).json({
-      success: true,
-      user: req.user
-    })
-
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    })
+exports.getMe = asyncHandler(async (req, res) => {
+  if (!req.user) {
+    res.status(401)
+    throw new Error("Unauthorized")
   }
-}
+
+  res.json({
+    success: true,
+    user: sanitizeUser(req.user),
+  })
+})
+
 
 // ================= CHANGE PASSWORD =================
 
-exports.changePassword = async (req, res) => {
-  try {
-    const { currentPassword, newPassword } = req.body
+exports.changePassword = asyncHandler(async (req, res) => {
+  const { oldPassword, newPassword } = req.body
 
-    const user = await User.findById(req.user._id).select("+password")
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found"
-      })
-    }
-
-    const isMatch = await user.matchPassword(currentPassword)
-
-    if (!isMatch) {
-      return res.status(400).json({
-        success: false,
-        message: "Current password is incorrect"
-      })
-    }
-
-    user.password = newPassword
-    await user.save()
-
-    res.status(200).json({
-      success: true,
-      message: "Password updated successfully"
-    })
-
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    })
+  if (!oldPassword || !newPassword || newPassword.length < 6) {
+    res.status(400)
+    throw new Error("Invalid password")
   }
-}
+
+  const user = await User.findById(req.user._id).select("+password")
+
+  if (!user || !(await user.matchPassword(oldPassword))) {
+    res.status(400)
+    throw new Error("Old password incorrect")
+  }
+
+  user.password = newPassword
+  await user.save()
+
+  // 🔥 invalidate all sessions
+  await Session.deleteMany({ userId: user._id })
+
+  res.json({
+    success: true,
+    message: "Password updated successfully",
+  })
+})

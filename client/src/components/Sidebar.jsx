@@ -15,25 +15,41 @@ import { useAuth } from "../context/AuthContext"
 import { NavLink } from "react-router-dom"
 import { useState, useEffect, useRef } from "react"
 
-const Sidebar = ({ collapsed, setCollapsed }) => {
+// ✅ Role constants
+const ROLES = {
+  ADMIN: "admin",
+  AGENT: "agent",
+  USER: "user"
+}
 
+const Sidebar = ({ collapsed, setCollapsed }) => {
   const { user } = useAuth()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const settingsRef = useRef()
 
+  // ✅ Debounced resize (performance)
   useEffect(() => {
+    let timeout
+
     const handleResize = () => {
-      if (window.innerWidth < 768) {
-        setCollapsed(true)
-      }
+      clearTimeout(timeout)
+      timeout = setTimeout(() => {
+        if (window.innerWidth < 768) {
+          setCollapsed(true)
+        }
+      }, 150)
     }
 
     handleResize()
     window.addEventListener("resize", handleResize)
 
-    return () => window.removeEventListener("resize", handleResize)
+    return () => {
+      window.removeEventListener("resize", handleResize)
+      clearTimeout(timeout)
+    }
   }, [setCollapsed])
 
+  // ✅ Click outside
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (settingsRef.current && !settingsRef.current.contains(e.target)) {
@@ -48,14 +64,14 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
   if (!user) return null
 
   const dashboardLink =
-    user.role === "admin"
+    user.role === ROLES.ADMIN
       ? "/admin-dashboard"
-      : user.role === "agent"
+      : user.role === ROLES.AGENT
       ? "/agent-dashboard"
       : "/user-dashboard"
 
   const linkClass = ({ isActive }) =>
-    `relative flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 ease-in-out group
+    `relative flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 ease-in-out group active:scale-95
     ${
       isActive
         ? "bg-blue-50 dark:bg-gray-800 text-blue-600 dark:text-blue-400"
@@ -68,19 +84,39 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
     }
   }
 
+  // ✅ Tooltip
   const Tooltip = ({ label, children }) => (
     <div className="relative group flex items-center">
       {children}
       {collapsed && (
-        <span className="absolute left-14 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition whitespace-nowrap z-[9999]">
+        <span className="absolute left-14 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition whitespace-nowrap z-50">
           {label}
         </span>
       )}
     </div>
   )
 
+  // ✅ Reusable Link Component
+  const SidebarLink = ({ to, icon: Icon, label }) => (
+    <NavLink to={to} className={linkClass} onClick={handleMobileClick}>
+      {({ isActive }) => (
+        <>
+          {isActive && (
+            <span className="absolute left-0 top-1 bottom-1 w-1 bg-blue-600 rounded-r"></span>
+          )}
+          <Tooltip label={label}>
+            <Icon className="text-lg group-hover:scale-110 group-hover:translate-x-1 transition-transform" />
+          </Tooltip>
+          {!collapsed && <span>{label}</span>}
+        </>
+      )}
+    </NavLink>
+  )
+
   return (
     <div
+      role="navigation"
+      aria-label="Sidebar Navigation"
       className={`
         relative
         bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm
@@ -92,7 +128,6 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
         px-3 py-5 overflow-visible flex flex-col
       `}
     >
-
       {/* Logo */}
       <div className="flex items-center gap-3 mb-8 px-2">
         <div className="bg-blue-600 text-white w-10 h-10 flex items-center justify-center rounded-lg font-bold text-lg">
@@ -107,6 +142,8 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
 
       {/* Collapse Button */}
       <button
+        aria-label="Toggle Sidebar"
+        aria-expanded={!collapsed}
         onClick={() => setCollapsed(!collapsed)}
         className="mb-6 w-full flex items-center justify-center p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition"
       >
@@ -114,131 +151,77 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
       </button>
 
       <ul className="space-y-6 flex-1">
-
         {/* Dashboard */}
-        <NavLink to={dashboardLink} className={linkClass} onClick={handleMobileClick}>
-          {({ isActive }) => (
-            <>
-              {isActive && <span className="absolute left-0 top-1 bottom-1 w-1 bg-blue-600 rounded-r"></span>}
-              <Tooltip label="Dashboard">
-                <FaHome className="text-lg group-hover:scale-110 transition-transform" />
-              </Tooltip>
-              {!collapsed && <span>Dashboard</span>}
-            </>
-          )}
-        </NavLink>
+        <SidebarLink to={dashboardLink} icon={FaHome} label="Dashboard" />
 
         {/* USER */}
-        {user.role === "user" && (
+        {user.role === ROLES.USER && (
           <>
-            {!collapsed && <p className="text-xs uppercase text-gray-400 px-2 tracking-wider">User</p>}
+            {!collapsed && (
+              <p className="text-xs uppercase text-gray-400 px-2 tracking-wider">
+                User
+              </p>
+            )}
 
-            <NavLink to="/user/saved" className={linkClass} onClick={handleMobileClick}>
-              {({ isActive }) => (
-                <>
-                  {isActive && <span className="absolute left-0 top-1 bottom-1 w-1 bg-blue-600 rounded-r"></span>}
-                  <Tooltip label="Wishlist">
-                    <FaHeart className="text-lg group-hover:scale-110 transition-transform" />
-                  </Tooltip>
-                  {!collapsed && <span>Wishlist</span>}
-                </>
-              )}
-            </NavLink>
-
-            <NavLink to="/user/bookings" className={linkClass} onClick={handleMobileClick}>
-              {({ isActive }) => (
-                <>
-                  {isActive && <span className="absolute left-0 top-1 bottom-1 w-1 bg-blue-600 rounded-r"></span>}
-                  <Tooltip label="My Visits">
-                    <FaCalendarCheck className="text-lg group-hover:scale-110 transition-transform" />
-                  </Tooltip>
-                  {!collapsed && <span>My Visits</span>}
-                </>
-              )}
-            </NavLink>
+            <SidebarLink to="/user/saved" icon={FaHeart} label="Wishlist" />
+            <SidebarLink to="/user/bookings" icon={FaCalendarCheck} label="My Visits" />
           </>
         )}
 
         {/* AGENT */}
-        {user.role === "agent" && (
+        {user.role === ROLES.AGENT && (
           <>
-            {!collapsed && <p className="text-xs uppercase text-gray-400 px-2 tracking-wider">Agent</p>}
+            {!collapsed && (
+              <p className="text-xs uppercase text-gray-400 px-2 tracking-wider">
+                Agent
+              </p>
+            )}
 
-            <NavLink to="/agent/manage-properties" className={linkClass} onClick={handleMobileClick}>
-              {({ isActive }) => (
-                <>
-                  {isActive && <span className="absolute left-0 top-1 bottom-1 w-1 bg-blue-600 rounded-r"></span>}
-                  <Tooltip label="Manage Properties">
-                    <FaBuilding className="text-lg group-hover:scale-110 transition-transform" />
-                  </Tooltip>
-                  {!collapsed && <span>Manage Properties</span>}
-                </>
-              )}
-            </NavLink>
-
-            <NavLink to="/agent/bookings" className={linkClass} onClick={handleMobileClick}>
-              {({ isActive }) => (
-                <>
-                  {isActive && <span className="absolute left-0 top-1 bottom-1 w-1 bg-blue-600 rounded-r"></span>}
-                  <Tooltip label="Bookings">
-                    <FaCalendarCheck className="text-lg group-hover:scale-110 transition-transform" />
-                  </Tooltip>
-                  {!collapsed && <span>Bookings</span>}
-                </>
-              )}
-            </NavLink>
+            <SidebarLink
+              to="/agent/manage-properties"
+              icon={FaBuilding}
+              label="Manage Properties"
+            />
+            <SidebarLink
+              to="/agent/bookings"
+              icon={FaCalendarCheck}
+              label="Bookings"
+            />
           </>
         )}
 
         {/* ADMIN */}
-        {user.role === "admin" && (
+        {user.role === ROLES.ADMIN && (
           <>
-            {!collapsed && <p className="text-xs uppercase text-gray-400 px-2 tracking-wider">Admin</p>}
+            {!collapsed && (
+              <p className="text-xs uppercase text-gray-400 px-2 tracking-wider">
+                Admin
+              </p>
+            )}
 
-            <NavLink to="/admin/properties" className={linkClass} onClick={handleMobileClick}>
-              {({ isActive }) => (
-                <>
-                  {isActive && <span className="absolute left-0 top-1 bottom-1 w-1 bg-blue-600 rounded-r"></span>}
-                  <Tooltip label="Properties">
-                    <FaBuilding className="text-lg group-hover:scale-110 transition-transform" />
-                  </Tooltip>
-                  {!collapsed && <span>Properties</span>}
-                </>
-              )}
-            </NavLink>
-
-            <NavLink to="/admin/users" className={linkClass} onClick={handleMobileClick}>
-              {({ isActive }) => (
-                <>
-                  {isActive && <span className="absolute left-0 top-1 bottom-1 w-1 bg-blue-600 rounded-r"></span>}
-                  <Tooltip label="Users">
-                    <FaUsers className="text-lg group-hover:scale-110 transition-transform" />
-                  </Tooltip>
-                  {!collapsed && <span>Users</span>}
-                </>
-              )}
-            </NavLink>
-
-            <NavLink to="/admin/analytics" className={linkClass} onClick={handleMobileClick}>
-              {({ isActive }) => (
-                <>
-                  {isActive && <span className="absolute left-0 top-1 bottom-1 w-1 bg-blue-600 rounded-r"></span>}
-                  <Tooltip label="Analytics">
-                    <FaChartLine className="text-lg group-hover:scale-110 transition-transform" />
-                  </Tooltip>
-                  {!collapsed && <span>Analytics</span>}
-                </>
-              )}
-            </NavLink>
+            <SidebarLink to="/admin/properties" icon={FaBuilding} label="Properties" />
+            <SidebarLink to="/admin/users" icon={FaUsers} label="Users" />
+            <SidebarLink to="/admin/analytics" icon={FaChartLine} label="Analytics" />
           </>
         )}
 
         {/* SETTINGS */}
-        <div className="relative" ref={settingsRef}>
+        <div
+          className="relative"
+          ref={settingsRef}
+        >
           <div
+            role="button"
+            tabIndex={0}
+            aria-expanded={settingsOpen}
             onClick={(e) => {
               e.stopPropagation()
-              setSettingsOpen(prev => !prev)
+              setSettingsOpen((prev) => !prev)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                setSettingsOpen((prev) => !prev)
+              }
             }}
             className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-200 ease-in-out hover:bg-gray-100 dark:hover:bg-gray-800 group"
           >
@@ -248,80 +231,31 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
             {!collapsed && <span>Settings</span>}
           </div>
 
+          {/* Expanded */}
           {!collapsed && settingsOpen && (
             <div className="ml-6 mt-2 space-y-2">
-
-              <NavLink
+              <SidebarLink
                 to={`/${user.role}/profile`}
-                className={({ isActive }) =>
-                  `relative flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 ease-in-out group
-                  ${
-                    isActive
-                      ? "bg-blue-50 dark:bg-gray-800 text-blue-600 dark:text-blue-400"
-                      : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
-                  }`
-                }
-              >
-                {({ isActive }) => (
-                  <div className="flex items-center gap-3 w-full">
-                    {isActive && (
-                      <span className="absolute left-0 top-1 bottom-1 w-1 bg-blue-600 rounded-r"></span>
-                    )}
-                    <FaUser className="text-lg group-hover:scale-110 transition-transform" />
-                    <span>Profile</span>
-                  </div>
-                )}
-              </NavLink>
-
-              <NavLink
+                icon={FaUser}
+                label="Profile"
+              />
+              <SidebarLink
                 to={`/${user.role}/change-password`}
-                className={({ isActive }) =>
-                  `relative flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 ease-in-out group
-                  ${
-                    isActive
-                      ? "bg-blue-50 dark:bg-gray-800 text-blue-600 dark:text-blue-400"
-                      : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
-                  }`
-                }
-              >
-                {({ isActive }) => (
-                  <div className="flex items-center gap-3 w-full">
-                    {isActive && (
-                      <span className="absolute left-0 top-1 bottom-1 w-1 bg-blue-600 rounded-r"></span>
-                    )}
-                    <FaKey className="text-lg group-hover:scale-110 transition-transform" />
-                    <span>Change Password</span>
-                  </div>
-                )}
-              </NavLink>
-
+                icon={FaKey}
+                label="Change Password"
+              />
             </div>
           )}
 
-          {/* FIXED COLLAPSED DROPDOWN */}
+          {/* Collapsed Dropdown */}
           {collapsed && settingsOpen && (
-            <div
-              className="
-                absolute 
-                left-full 
-                ml-2 
-                top-0 
-                bg-white dark:bg-gray-900 
-                border border-gray-200 dark:border-gray-700 
-                rounded-xl shadow-xl 
-                w-52 
-                p-2 
-                backdrop-blur-md 
-                z-[9999]
-              "
-            >
-
+            <div className="absolute left-full top-0 ml-2 max-w-[90vw] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl w-52 p-2 backdrop-blur-md z-50">
               <NavLink
                 to={`/${user.role}/profile`}
                 className="flex items-center gap-2 px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800"
                 onClick={() => setSettingsOpen(false)}
               >
-                <FaUser className="text-lg" />
+                <FaUser />
                 Profile
               </NavLink>
 
@@ -330,21 +264,20 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
                 className="flex items-center gap-2 px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800"
                 onClick={() => setSettingsOpen(false)}
               >
-                <FaKey className="text-lg" />
+                <FaKey />
                 Change Password
               </NavLink>
-
             </div>
           )}
-
         </div>
-
       </ul>
 
       {/* USER PROFILE */}
       <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
         <div className="flex items-center gap-3 px-2">
-          <div className="w-10 h-10 bg-gray-300 rounded-full"></div>
+          <div className="w-10 h-10 bg-blue-500 text-white flex items-center justify-center rounded-full font-semibold">
+            {user?.name?.charAt(0)?.toUpperCase() || "U"}
+          </div>
           {!collapsed && (
             <div>
               <p className="text-sm font-medium">{user?.name || "User"}</p>
@@ -353,7 +286,6 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
           )}
         </div>
       </div>
-
     </div>
   )
 }

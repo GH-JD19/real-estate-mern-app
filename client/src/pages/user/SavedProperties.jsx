@@ -1,17 +1,16 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import api from "../../services/api"
 import { getImageUrl } from "../../utils/getImageUrl"
 import { toast } from "react-toastify"
-import io from "socket.io-client"
+import { io } from "socket.io-client"
 import { Download } from "lucide-react"
 
-// Export libs
 import * as XLSX from "xlsx"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
 
-const socket = io("http://localhost:5000")
+const SOCKET_URL = import.meta.env.VITE_API_URL || "http://localhost:5000"
 
 function SavedProperties() {
 
@@ -21,16 +20,28 @@ function SavedProperties() {
   const [filteredProperties, setFilteredProperties] = useState([])
 
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
 
-  // Filters
   const [search, setSearch] = useState("")
+  const [date, setDate] = useState("")
 
-  // Pagination
   const [currentPage, setCurrentPage] = useState(1)
+  const [exporting, setExporting] = useState(false)
+  const [removingId, setRemovingId] = useState(null)
+
   const propertiesPerPage = 6
 
+  const socketRef = useRef(null)
+  const abortRef = useRef(null)
+  const latestRequest = useRef(0)
+
+  // ================= SOCKET =================
   useEffect(() => {
-    fetchWishlist()
+    const socket = io(SOCKET_URL, { withCredentials: true })
+    socketRef.current = socket
+
+    const userId = JSON.parse(localStorage.getItem("user"))?._id
+    if (userId) socket.emit("joinUser", userId)
 
     socket.on("wishlistUpdated", () => {
       fetchWishlist()
@@ -38,36 +49,59 @@ function SavedProperties() {
 
     return () => {
       socket.off("wishlistUpdated")
+      socket.disconnect()
     }
-
   }, [])
 
-  // ===============================
-  // FETCH DATA
-  // ===============================
+  // ================= FETCH =================
   const fetchWishlist = async () => {
+
+    if (abortRef.current) abortRef.current.abort()
+
+    const controller = new AbortController()
+    abortRef.current = controller
+
+    const requestId = Date.now()
+    latestRequest.current = requestId
 
     try {
       setLoading(true)
+      setError("")
 
-      const res = await api.get("/wishlist")
+      const res = await api.get("/wishlist", {
+        signal: controller.signal,
+        timeout: 10000
+      })
 
-      setProperties(res.data.properties || [])
-      setFilteredProperties(res.data.properties || [])
+      if (latestRequest.current !== requestId) return
+
+      const data = res.data.properties || []
+
+      setProperties(data)
+      setFilteredProperties(data)
 
     } catch (err) {
-      console.log(err)
+      if (err.name === "CanceledError") return
+      if (latestRequest.current !== requestId) return
+
+      setError("Failed to load wishlist")
       toast.error("Failed to load wishlist")
+
       setProperties([])
       setFilteredProperties([])
+
     } finally {
-      setLoading(false)
+      if (latestRequest.current === requestId) {
+        setLoading(false)
+      }
     }
   }
 
-  // ===============================
-  // FILTER
-  // ===============================
+  useEffect(() => {
+    fetchWishlist()
+  }, [])
+
+  // ================= FILTER =================
   useEffect(() => {
 
     let temp = [...properties]
@@ -79,31 +113,52 @@ function SavedProperties() {
       )
     }
 
+    if (date) {
+      temp = temp.filter(p => {
+        if (!p.createdAt) return false
+        const created = new Date(p.createdAt)
+        if (isNaN(created)) return false
+        return created.toISOString().split("T")[0] === date
+      })
+    }
+
     setFilteredProperties(temp)
     setCurrentPage(1)
 
-  }, [search, properties])
+  }, [search, date, properties])
 
-  // ===============================
-  // PAGINATION
-  // ===============================
+  // ================= PAGINATION =================
   const indexOfLast = currentPage * propertiesPerPage
   const indexOfFirst = indexOfLast - propertiesPerPage
   const currentProperties = filteredProperties.slice(indexOfFirst, indexOfLast)
 
   const totalPages = Math.ceil(filteredProperties.length / propertiesPerPage)
 
+  const getPageNumbers = () => {
+    const maxVisible = 5
+    let start = Math.max(1, currentPage - 2)
+    let end = Math.min(totalPages, start + maxVisible - 1)
+
+    if (end - start < maxVisible - 1) {
+      start = Math.max(1, end - maxVisible + 1)
+    }
+
+    const range = []
+    for (let i = start; i <= end; i++) range.push(i)
+    return range
+  }
+
   const goToPage = (pageNumber) => {
     setCurrentPage(pageNumber)
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
-  // ===============================
-  // REMOVE
-  // ===============================
+  // ================= REMOVE =================
   const removeWishlist = async (id) => {
+    if (removingId) return
 
     try {
+      setRemovingId(id)
 
       await api.put(`/wishlist/remove/${id}`)
 
@@ -113,74 +168,74 @@ function SavedProperties() {
 
       toast.success("Removed from wishlist")
 
-    } catch (err) {
-      console.log(err)
+    } catch {
       toast.error("Failed to remove property")
+    } finally {
+      setRemovingId(null)
     }
   }
 
-  // ===============================
-  // EXPORT
-  // ===============================
-  const formatData = () => {
-    return filteredProperties.map(p => ({
-      Title: p.title,
-      Price: p.price,
-      City: p.city
+  // ================= EXPORT =================
+  const formatData = () =>
+    filteredProperties.map(p => ({
+      Title: p.title || "N/A",
+      Price: p.price || "N/A",
+      City: p.city || "N/A"
     }))
-  }
 
-  const exportCSV = () => {
+  const handleExport = async (type) => {
+    setExporting(true)
+
     const data = formatData()
-    if (data.length === 0) return
+    if (!data.length) {
+      setExporting(false)
+      return
+    }
 
-    const csv = [
-      Object.keys(data[0]).join(","),
-      ...data.map(row => Object.values(row).join(","))
-    ].join("\n")
+    if (type === "csv") {
+      const csv = [
+        Object.keys(data[0]).join(","),
+        ...data.map(row => Object.values(row).join(","))
+      ].join("\n")
 
-    const blob = new Blob([csv], { type: "text/csv" })
-    const url = window.URL.createObjectURL(blob)
+      const blob = new Blob([csv])
+      const url = URL.createObjectURL(blob)
 
-    const a = document.createElement("a")
-    a.href = url
-    a.download = "saved_properties.csv"
-    a.click()
-  }
+      const a = document.createElement("a")
+      a.href = url
+      a.download = "saved_properties.csv"
+      a.click()
+    }
 
-  const exportExcel = () => {
-    const data = formatData()
-    if (data.length === 0) return
+    if (type === "excel") {
+      const ws = XLSX.utils.json_to_sheet(data)
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, "Wishlist")
+      XLSX.writeFile(wb, "saved_properties.xlsx")
+    }
 
-    const ws = XLSX.utils.json_to_sheet(data)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, "Wishlist")
-    XLSX.writeFile(wb, "saved_properties.xlsx")
-  }
+    if (type === "pdf") {
+      const doc = new jsPDF()
+      autoTable(doc, {
+        head: [["Title", "Price", "City"]],
+        body: data.map(item => Object.values(item))
+      })
+      doc.save("saved_properties.pdf")
+    }
 
-  const exportPDF = () => {
-    const data = formatData()
-    if (data.length === 0) return
-
-    const doc = new jsPDF()
-
-    const tableData = data.map(item => [
-      item.Title,
-      item.Price,
-      item.City
-    ])
-
-    autoTable(doc, {
-      head: [["Title", "Price", "City"]],
-      body: tableData
-    })
-
-    doc.save("saved_properties.pdf")
+    setExporting(false)
   }
 
   return (
 
     <div className="bg-gray-100 dark:bg-gray-900 min-h-screen px-4 md:px-8 py-6">
+
+      {/* ERROR */}
+      {error && (
+        <div className="bg-red-100 text-red-600 text-center p-3 mb-4 rounded">
+          {error}
+        </div>
+      )}
 
       {/* HEADER */}
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-6">
@@ -191,37 +246,66 @@ function SavedProperties() {
 
         <div className="flex flex-wrap gap-2">
 
-          <button onClick={exportCSV} className="flex items-center gap-2 px-3 py-2 bg-green-600 text-white rounded-lg">
+          <button onClick={() => handleExport("csv")}
+            disabled={exporting}
+            className="flex items-center gap-2 px-3 py-2 bg-green-600 text-white rounded-lg disabled:opacity-50">
             <Download size={16}/> CSV
           </button>
 
-          <button onClick={exportExcel} className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg">
+          <button onClick={() => handleExport("excel")}
+            disabled={exporting}
+            className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg disabled:opacity-50">
             <Download size={16}/> Excel
           </button>
 
-          <button onClick={exportPDF} className="flex items-center gap-2 px-3 py-2 bg-red-600 text-white rounded-lg">
+          <button onClick={() => handleExport("pdf")}
+            disabled={exporting}
+            className="flex items-center gap-2 px-3 py-2 bg-red-600 text-white rounded-lg disabled:opacity-50">
             <Download size={16}/> PDF
           </button>
 
         </div>
       </div>
 
-      {/* SEARCH */}
-      <div className="bg-white dark:bg-gray-800 p-4 rounded-xl mb-6">
+      {/* FILTER */}
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-xl mb-6 flex flex-col md:flex-row gap-4">
 
         <input
           type="text"
           placeholder="Search saved properties..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full px-4 py-2 rounded bg-gray-100 dark:bg-gray-700 outline-none"
+          className="flex-1 px-4 py-2 rounded bg-gray-100 dark:bg-gray-700 outline-none"
         />
+
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          className="px-4 py-2 rounded bg-gray-100 dark:bg-gray-700"
+        />
+
+        <button
+          onClick={() => {
+            setSearch("")
+            setDate("")
+          }}
+          className="px-4 py-2 bg-red-500 text-white rounded"
+        >
+          Clear
+        </button>
 
       </div>
 
       {/* CONTENT */}
       {loading ? (
-        <div className="text-center py-10">Loading...</div>
+
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="h-60 bg-gray-300 dark:bg-gray-700 rounded-xl animate-pulse" />
+          ))}
+        </div>
+
       ) : filteredProperties.length === 0 ? (
 
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-10 text-center">
@@ -250,29 +334,29 @@ function SavedProperties() {
 
             {currentProperties.map(p => (
 
-              <div
-                key={p._id}
-                className="bg-white dark:bg-gray-800 shadow rounded-xl overflow-hidden hover:shadow-xl transition"
-              >
+              <div key={p._id}
+                className="bg-white dark:bg-gray-800 shadow rounded-xl overflow-hidden hover:shadow-xl transition">
 
                 <img
                   src={getImageUrl(p.media?.images?.[0])}
                   alt={p.title}
+                  loading="lazy"
+                  onError={(e) => (e.target.src = "/no-image.jpg")}
                   className="h-48 w-full object-cover"
                 />
 
                 <div className="p-4 space-y-2">
 
                   <h3 className="font-semibold text-lg">
-                    {p.title}
+                    {p.title || "N/A"}
                   </h3>
 
                   <p className="text-blue-600 font-bold">
-                    ₹ {p.price?.toLocaleString()}
+                    ₹ {p.price ? Number(p.price).toLocaleString() : "N/A"}
                   </p>
 
                   <p className="text-gray-600">
-                    {p.city}
+                    {p.city || "N/A"}
                   </p>
 
                   <div className="flex gap-2 mt-3">
@@ -285,8 +369,9 @@ function SavedProperties() {
                     </button>
 
                     <button
+                      disabled={removingId === p._id}
                       onClick={() => removeWishlist(p._id)}
-                      className="flex-1 border border-red-500 text-red-500 py-2 rounded hover:bg-red-50"
+                      className="flex-1 border border-red-500 text-red-500 py-2 rounded hover:bg-red-50 disabled:opacity-50"
                     >
                       Remove
                     </button>
@@ -305,46 +390,38 @@ function SavedProperties() {
           {totalPages > 1 && (
             <div className="flex justify-center mt-8 flex-wrap gap-2">
 
-              <button
-                disabled={currentPage === 1}
+              <button disabled={currentPage === 1}
                 onClick={() => goToPage(currentPage - 1)}
-                className="px-4 py-2 bg-gray-300 dark:bg-gray-700 rounded"
-              >
+                className="px-4 py-2 bg-gray-300 dark:bg-gray-700 rounded">
                 Prev
               </button>
 
-              {[...Array(totalPages)].map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => goToPage(i + 1)}
+              {getPageNumbers().map(p => (
+                <button key={p}
+                  onClick={() => goToPage(p)}
                   className={`px-4 py-2 rounded ${
-                    currentPage === i + 1
+                    currentPage === p
                       ? "bg-blue-600 text-white"
                       : "bg-gray-300 dark:bg-gray-700"
-                  }`}
-                >
-                  {i + 1}
+                  }`}>
+                  {p}
                 </button>
               ))}
 
-              <button
-                disabled={currentPage === totalPages}
+              <button disabled={currentPage === totalPages}
                 onClick={() => goToPage(currentPage + 1)}
-                className="px-4 py-2 bg-gray-300 dark:bg-gray-700 rounded"
-              >
+                className="px-4 py-2 bg-gray-300 dark:bg-gray-700 rounded">
                 Next
               </button>
 
             </div>
           )}
-
         </>
       )}
 
     </div>
 
   )
-
 }
 
 export default SavedProperties

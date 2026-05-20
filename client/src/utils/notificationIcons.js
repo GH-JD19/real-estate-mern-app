@@ -5,23 +5,36 @@ import {
   FaCalendarCheck
 } from "react-icons/fa"
 
-export const getNotificationIcon = (type) => {
-
-  switch (type) {
-
-    case "PROPERTY_CREATED":
-      return <FaHome className="text-blue-500" />
-
-    case "PROPERTY_APPROVED":
-      return <FaCheckCircle className="text-green-500" />
-
-    case "PROPERTY_REJECTED":
-      return <FaTimesCircle className="text-red-500" />
-
-    case "BOOKING_CREATED":
-      return <FaCalendarCheck className="text-purple-500" />
-
-    default:
-      return <FaHome />
+// 🔹 ICON CONFIG (SCALABLE)
+const ICON_MAP = {
+  PROPERTY_CREATED: {
+    icon: FaHome,
+    className: "text-blue-500"
+  },
+  PROPERTY_APPROVED: {
+    icon: FaCheckCircle,
+    className: "text-green-500"
+  },
+  PROPERTY_REJECTED: {
+    icon: FaTimesCircle,
+    className: "text-red-500"
+  },
+  BOOKING_CREATED: {
+    icon: FaCalendarCheck,
+    className: "text-purple-500"
   }
+}
+
+// 🔹 DEFAULT FALLBACK
+const DEFAULT_ICON = {
+  icon: FaHome,
+  className: "text-gray-400"
+}
+
+// 🔹 GET ICON
+export const getNotificationIcon = (type) => {
+  const config = ICON_MAP[type] || DEFAULT_ICON
+  const Icon = config.icon
+
+  return <Icon className={config.className} />
 }

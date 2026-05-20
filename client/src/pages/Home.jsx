@@ -8,118 +8,99 @@ import PropertyList from "../components/PropertyList"
 import WhyChooseUs from "../components/WhyChooseUs"
 import SectionSkeleton from "../components/SectionSkeleton"
 
-// Lazy load heavy components
+// Lazy load
 const Testimonials = lazy(() => import("../components/Testimonials"))
 
 function Home() {
-  // DATA STATES
   const [featured, setFeatured] = useState([])
   const [properties, setProperties] = useState([])
   const [totalPages, setTotalPages] = useState(1)
   const [page, setPage] = useState(1)
 
-  // LOADING STATES (SEPARATED)
   const [featuredLoading, setFeaturedLoading] = useState(true)
   const [propertiesLoading, setPropertiesLoading] = useState(true)
 
-  // ERROR STATES (SEPARATED)
   const [featuredError, setFeaturedError] = useState(null)
   const [propertiesError, setPropertiesError] = useState(null)
 
-  // ==============================
-  // FETCH FEATURED PROPERTIES
-  // ==============================
-  const fetchFeatured = useCallback(async () => {
-    try {
-      setFeaturedLoading(true)
+  // SAFE FETCH HANDLER
+  const fetchData = useCallback(
+    async (url, setData, setError, setLoading, extra = null) => {
+      let isMounted = true
 
-      const res = await api.get(`/properties/featured`)
+      try {
+        setLoading(true)
 
-      if (process.env.NODE_ENV === "development") {
-        console.log("FEATURED:", res.data)
+        const res = await api.get(url)
+
+        const list =
+          res.data?.properties ||
+          res.data?.data ||
+          res.data?.items ||
+          []
+
+        if (!isMounted) return
+
+        setData(list)
+
+        if (extra && res.data?.totalPages) {
+          extra(res.data.totalPages)
+        }
+
+        setError(null)
+
+      } catch (err) {
+        if (!isMounted) return
+
+        setError(
+          err?.response?.data?.message ||
+          err?.message ||
+          "Something went wrong"
+        )
+      } finally {
+        if (isMounted) setLoading(false)
       }
 
-      setFeatured(res.data.properties || [])
-      setFeaturedError(null)
-    } catch (err) {
-      console.error(err)
-      setFeaturedError(
-        err?.response?.data?.message ||
-        err?.message ||
-        "Failed to load featured properties"
-      )
-    } finally {
-      setFeaturedLoading(false)
-    }
-  }, [])
-
-  // ==============================
-  // FETCH PAGINATED PROPERTIES
-  // ==============================
-  const fetchProperties = useCallback(async (currentPage = 1) => {
-    try {
-      setPropertiesLoading(true)
-
-      const res = await api.get(`/properties?page=${currentPage}`)
-
-      if (process.env.NODE_ENV === "development") {
-        console.log("PROPERTIES:", res.data)
+      return () => {
+        isMounted = false
       }
+    },
+    []
+  )
 
-      setProperties(res.data.properties || [])
-      setTotalPages(res.data.totalPages || 1)
-      setPropertiesError(null)
-    } catch (err) {
-      console.error(err)
-      setPropertiesError(
-        err?.response?.data?.message ||
-        err?.message ||
-        "Failed to load properties"
+  const fetchFeatured = useCallback(() => {
+    fetchData(
+      "/properties/featured",
+      setFeatured,
+      setFeaturedError,
+      setFeaturedLoading
+    )
+  }, [fetchData])
+
+  const fetchProperties = useCallback(
+    (currentPage = 1) => {
+      fetchData(
+        `/properties?page=${currentPage}`,
+        setProperties,
+        setPropertiesError,
+        setPropertiesLoading,
+        setTotalPages
       )
-    } finally {
-      setPropertiesLoading(false)
-    }
-  }, [])
+    },
+    [fetchData]
+  )
 
-  // ==============================
-  // EFFECT: LOAD FEATURED ONCE
-  // ==============================
   useEffect(() => {
-    let isMounted = true
-
-    const load = async () => {
-      if (isMounted) await fetchFeatured()
-    }
-
-    load()
-
-    return () => {
-      isMounted = false
-    }
+    fetchFeatured()
   }, [fetchFeatured])
 
-  // ==============================
-  // EFFECT: LOAD PROPERTIES ON PAGE CHANGE
-  // ==============================
   useEffect(() => {
-    let isMounted = true
-
-    const load = async () => {
-      if (isMounted) await fetchProperties(page)
-    }
-
-    load()
-
-    // Scroll to top on page change
+    fetchProperties(page)
     window.scrollTo({ top: 0, behavior: "smooth" })
-
-    return () => {
-      isMounted = false
-    }
   }, [page, fetchProperties])
 
   return (
-    <div className="bg-gray-50 dark:bg-gray-900 min-h-screen">
+    <section className="bg-gray-50 dark:bg-gray-900 min-h-screen">
 
       {/* SEO */}
       <Helmet>
@@ -144,7 +125,7 @@ function Home() {
       {/* WHY CHOOSE US */}
       <WhyChooseUs />
 
-      {/* TESTIMONIALS (LAZY) */}
+      {/* TESTIMONIALS */}
       <Suspense fallback={<SectionSkeleton height="200px" />}>
         <Testimonials />
       </Suspense>
@@ -159,7 +140,8 @@ function Home() {
         error={propertiesError}
         onRetry={() => fetchProperties(page)}
       />
-    </div>
+
+    </section>
   )
 }
 

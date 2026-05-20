@@ -9,20 +9,22 @@ const {
   getMonthlyCharts
 } = require("../controllers/adminAnalyticsController")
 
-// Dashboard Stats
-router.get(
-  "/dashboard",
-  protect,
-  authorize("admin"),
-  getDashboardStats
-)
+const rateLimit = require("express-rate-limit")
 
-// Monthly Charts (FINAL)
-router.get(
-  "/charts",
-  protect,
-  authorize("admin"),
-  getMonthlyCharts
-)
+// ✅ Admin Rate Limiter (safe for heavy queries)
+const adminAnalyticsLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 30, // 30 requests per minute
+  message: "Too many requests, please try again later"
+})
+
+// ✅ Protect ALL routes (prevents future mistakes)
+router.use(protect, authorize("admin"), adminAnalyticsLimiter)
+
+// Dashboard Stats
+router.get("/dashboard", getDashboardStats)
+
+// Monthly Charts
+router.get("/charts", getMonthlyCharts)
 
 module.exports = router

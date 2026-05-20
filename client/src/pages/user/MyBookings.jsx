@@ -1,14 +1,13 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import api from "../../services/api"
-import io from "socket.io-client"
+import { io } from "socket.io-client"
 import { Download } from "lucide-react"
 
-// Export libs
 import * as XLSX from "xlsx"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
 
-const socket = io("http://localhost:5000")
+const SOCKET_URL = import.meta.env.VITE_API_URL || "http://localhost:5000"
 
 function MyBookings() {
 
@@ -16,17 +15,27 @@ function MyBookings() {
   const [filteredBookings, setFilteredBookings] = useState([])
 
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
 
-  // Filters
   const [search, setSearch] = useState("")
   const [date, setDate] = useState("")
 
-  // Pagination
   const [currentPage, setCurrentPage] = useState(1)
+  const [exporting, setExporting] = useState(false)
+
   const bookingsPerPage = 5
 
+  const socketRef = useRef(null)
+  const abortRef = useRef(null)
+  const latestRequest = useRef(0)
+
+  // ================= SOCKET =================
   useEffect(() => {
-    fetchBookings()
+    const socket = io(SOCKET_URL, { withCredentials: true })
+    socketRef.current = socket
+
+    const userId = JSON.parse(localStorage.getItem("user"))?._id
+    if (userId) socket.emit("joinUser", userId)
 
     socket.on("bookingUpdated", () => {
       fetchBookings()
@@ -34,39 +43,61 @@ function MyBookings() {
 
     return () => {
       socket.off("bookingUpdated")
+      socket.disconnect()
     }
-
   }, [])
 
-  // ===============================
-  // FETCH BOOKINGS
-  // ===============================
+  // ================= FETCH =================
   const fetchBookings = async () => {
+
+    if (abortRef.current) abortRef.current.abort()
+
+    const controller = new AbortController()
+    abortRef.current = controller
+
+    const requestId = Date.now()
+    latestRequest.current = requestId
+
     try {
       setLoading(true)
+      setError("")
 
-      const res = await api.get("/visits/user")
+      const res = await api.get("/visits/user", {
+        signal: controller.signal,
+        timeout: 10000
+      })
 
-      setBookings(res.data.visits || [])
-      setFilteredBookings(res.data.visits || [])
+      if (latestRequest.current !== requestId) return
+
+      const data = res.data.visits || []
+
+      setBookings(data)
+      setFilteredBookings(data)
 
     } catch (err) {
-      console.log(err)
+      if (err.name === "CanceledError") return
+      if (latestRequest.current !== requestId) return
+
+      setError("Failed to load visits")
       setBookings([])
       setFilteredBookings([])
+
     } finally {
-      setLoading(false)
+      if (latestRequest.current === requestId) {
+        setLoading(false)
+      }
     }
   }
 
-  // ===============================
-  // FILTER LOGIC
-  // ===============================
+  useEffect(() => {
+    fetchBookings()
+  }, [])
+
+  // ================= FILTER =================
   useEffect(() => {
 
     let temp = [...bookings]
 
-    // 🔍 SEARCH
     if (search) {
       temp = temp.filter(b =>
         b.property?.title?.toLowerCase().includes(search.toLowerCase()) ||
@@ -74,12 +105,12 @@ function MyBookings() {
       )
     }
 
-    // 📅 DATE FILTER
     if (date) {
       temp = temp.filter(b => {
         if (!b.visitDate) return false
-        const visit = new Date(b.visitDate).toISOString().split("T")[0]
-        return visit === date
+        const visit = new Date(b.visitDate)
+        if (isNaN(visit)) return false
+        return visit.toISOString().split("T")[0] === date
       })
     }
 
@@ -88,102 +119,106 @@ function MyBookings() {
 
   }, [search, date, bookings])
 
-  // ===============================
-  // PAGINATION LOGIC
-  // ===============================
+  // ================= PAGINATION =================
   const indexOfLast = currentPage * bookingsPerPage
   const indexOfFirst = indexOfLast - bookingsPerPage
   const currentBookings = filteredBookings.slice(indexOfFirst, indexOfLast)
 
   const totalPages = Math.ceil(filteredBookings.length / bookingsPerPage)
 
+  const getPageNumbers = () => {
+    const maxVisible = 5
+    let start = Math.max(1, currentPage - 2)
+    let end = Math.min(totalPages, start + maxVisible - 1)
+
+    if (end - start < maxVisible - 1) {
+      start = Math.max(1, end - maxVisible + 1)
+    }
+
+    const range = []
+    for (let i = start; i <= end; i++) range.push(i)
+    return range
+  }
+
   const goToPage = (pageNumber) => {
     setCurrentPage(pageNumber)
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
-  // ===============================
-  // STATUS COLOR
-  // ===============================
+  // ================= STATUS =================
   const statusColor = (status) => {
     switch(status) {
-      case "APPROVED":
-        return "bg-green-500"
-      case "PENDING":
-        return "bg-yellow-500"
-      case "REJECTED":
-        return "bg-red-500"
-      default:
-        return "bg-gray-400"
+      case "APPROVED": return "bg-green-500"
+      case "PENDING": return "bg-yellow-500"
+      case "REJECTED": return "bg-red-500"
+      default: return "bg-gray-400"
     }
   }
 
-  // ===============================
-  // EXPORT
-  // ===============================
-  const formatData = () => {
-    return filteredBookings.map(b => ({
-      Property: b.property?.title,
-      City: b.property?.city,
-      Price: b.property?.price,
-      VisitDate: new Date(b.visitDate).toLocaleString(),
+  // ================= EXPORT =================
+  const formatData = () =>
+    filteredBookings.map(b => ({
+      Property: b.property?.title || "N/A",
+      City: b.property?.city || "N/A",
+      Price: b.property?.price || "N/A",
+      VisitDate: b.visitDate
+        ? new Date(b.visitDate).toLocaleString()
+        : "N/A",
       Status: b.status
     }))
-  }
 
-  const exportCSV = () => {
+  const handleExport = async (type) => {
+    setExporting(true)
+
     const data = formatData()
-    if (data.length === 0) return
+    if (!data.length) {
+      setExporting(false)
+      return
+    }
 
-    const csv = [
-      Object.keys(data[0]).join(","),
-      ...data.map(row => Object.values(row).join(","))
-    ].join("\n")
+    if (type === "csv") {
+      const csv = [
+        Object.keys(data[0]).join(","),
+        ...data.map(row => Object.values(row).join(","))
+      ].join("\n")
 
-    const blob = new Blob([csv], { type: "text/csv" })
-    const url = window.URL.createObjectURL(blob)
+      const blob = new Blob([csv])
+      const url = URL.createObjectURL(blob)
 
-    const a = document.createElement("a")
-    a.href = url
-    a.download = "my_bookings.csv"
-    a.click()
-  }
+      const a = document.createElement("a")
+      a.href = url
+      a.download = "my_bookings.csv"
+      a.click()
+    }
 
-  const exportExcel = () => {
-    const data = formatData()
-    if (data.length === 0) return
+    if (type === "excel") {
+      const ws = XLSX.utils.json_to_sheet(data)
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, "Bookings")
+      XLSX.writeFile(wb, "my_bookings.xlsx")
+    }
 
-    const ws = XLSX.utils.json_to_sheet(data)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, "Bookings")
-    XLSX.writeFile(wb, "my_bookings.xlsx")
-  }
+    if (type === "pdf") {
+      const doc = new jsPDF()
+      autoTable(doc, {
+        head: [["Property", "City", "Price", "Visit Date", "Status"]],
+        body: data.map(item => Object.values(item))
+      })
+      doc.save("my_bookings.pdf")
+    }
 
-  const exportPDF = () => {
-    const data = formatData()
-    if (data.length === 0) return
-
-    const doc = new jsPDF()
-
-    const tableData = data.map(item => [
-      item.Property,
-      item.City,
-      item.Price,
-      item.VisitDate,
-      item.Status
-    ])
-
-    autoTable(doc, {
-      head: [["Property", "City", "Price", "Visit Date", "Status"]],
-      body: tableData
-    })
-
-    doc.save("my_bookings.pdf")
+    setExporting(false)
   }
 
   return (
-
     <div className="bg-gray-100 dark:bg-gray-900 min-h-screen px-4 md:px-8 py-6">
+
+      {/* ERROR */}
+      {error && (
+        <div className="bg-red-100 text-red-600 text-center p-3 mb-4 rounded">
+          {error}
+        </div>
+      )}
 
       {/* HEADER */}
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-6">
@@ -194,22 +229,28 @@ function MyBookings() {
 
         <div className="flex flex-wrap gap-2">
 
-          <button onClick={exportCSV} className="flex items-center gap-2 px-3 py-2 bg-green-600 text-white rounded-lg">
+          <button onClick={() => handleExport("csv")}
+            disabled={exporting}
+            className="flex items-center gap-2 px-3 py-2 bg-green-600 text-white rounded-lg disabled:opacity-50">
             <Download size={16}/> CSV
           </button>
 
-          <button onClick={exportExcel} className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg">
+          <button onClick={() => handleExport("excel")}
+            disabled={exporting}
+            className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg disabled:opacity-50">
             <Download size={16}/> Excel
           </button>
 
-          <button onClick={exportPDF} className="flex items-center gap-2 px-3 py-2 bg-red-600 text-white rounded-lg">
+          <button onClick={() => handleExport("pdf")}
+            disabled={exporting}
+            className="flex items-center gap-2 px-3 py-2 bg-red-600 text-white rounded-lg disabled:opacity-50">
             <Download size={16}/> PDF
           </button>
 
         </div>
       </div>
 
-      {/* FILTER BAR */}
+      {/* FILTER */}
       <div className="bg-white dark:bg-gray-800 p-4 rounded-xl mb-6 flex flex-col md:flex-row gap-4">
 
         <input
@@ -243,41 +284,35 @@ function MyBookings() {
       {loading ? (
         <div className="text-center py-10">Loading...</div>
       ) : filteredBookings.length === 0 ? (
-
         <div className="bg-white dark:bg-gray-800 p-6 text-center rounded shadow">
           No visits found
         </div>
-
       ) : (
-
         <>
           <div className="space-y-4">
 
             {currentBookings.map(b => (
-
-              <div
-                key={b._id}
-                className="bg-white dark:bg-gray-800 shadow-md rounded-xl p-4 flex flex-col md:flex-row md:justify-between md:items-center gap-4"
-              >
+              <div key={b._id}
+                className="bg-white dark:bg-gray-800 shadow-md rounded-xl p-4 flex flex-col md:flex-row md:justify-between md:items-center gap-4">
 
                 <div className="flex-1">
 
                   <h3 className="font-semibold text-lg">
-                    {b.property?.title}
+                    {b.property?.title || "N/A"}
                   </h3>
 
                   <p className="text-gray-600 dark:text-gray-300">
-                    {b.property?.city}
+                    {b.property?.city || "N/A"}
                   </p>
 
                   <p className="text-blue-600 font-bold">
-                    ₹ {b.property?.price?.toLocaleString()}
+                    ₹ {b.property?.price ? Number(b.property.price).toLocaleString() : "N/A"}
                   </p>
 
                   <p className="mt-2 text-sm">
                     Visit Date:
                     <span className="ml-2 font-medium">
-                      {new Date(b.visitDate).toLocaleString()}
+                      {b.visitDate ? new Date(b.visitDate).toLocaleString() : "N/A"}
                     </span>
                   </p>
 
@@ -290,7 +325,6 @@ function MyBookings() {
                 </div>
 
               </div>
-
             ))}
 
           </div>
@@ -299,44 +333,36 @@ function MyBookings() {
           {totalPages > 1 && (
             <div className="flex justify-center mt-8 flex-wrap gap-2">
 
-              <button
-                disabled={currentPage === 1}
+              <button disabled={currentPage === 1}
                 onClick={() => goToPage(currentPage - 1)}
-                className="px-4 py-2 bg-gray-300 dark:bg-gray-700 rounded"
-              >
+                className="px-4 py-2 bg-gray-300 dark:bg-gray-700 rounded">
                 Prev
               </button>
 
-              {[...Array(totalPages)].map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => goToPage(i + 1)}
+              {getPageNumbers().map(p => (
+                <button key={p}
+                  onClick={() => goToPage(p)}
                   className={`px-4 py-2 rounded ${
-                    currentPage === i + 1
+                    currentPage === p
                       ? "bg-blue-600 text-white"
                       : "bg-gray-300 dark:bg-gray-700"
-                  }`}
-                >
-                  {i + 1}
+                  }`}>
+                  {p}
                 </button>
               ))}
 
-              <button
-                disabled={currentPage === totalPages}
+              <button disabled={currentPage === totalPages}
                 onClick={() => goToPage(currentPage + 1)}
-                className="px-4 py-2 bg-gray-300 dark:bg-gray-700 rounded"
-              >
+                className="px-4 py-2 bg-gray-300 dark:bg-gray-700 rounded">
                 Next
               </button>
 
             </div>
           )}
-
         </>
       )}
 
     </div>
-
   )
 }
 

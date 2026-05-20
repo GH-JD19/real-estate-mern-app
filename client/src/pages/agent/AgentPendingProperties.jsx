@@ -1,17 +1,16 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import api from "../../services/api"
+import { toast } from "react-toastify"
 import { useNavigate } from "react-router-dom"
 import { FaArrowLeft } from "react-icons/fa"
 import { Download } from "lucide-react"
-import { toast } from "react-toastify"
-import io from "socket.io-client"
+import { io } from "socket.io-client"
 
-// Export libs
 import * as XLSX from "xlsx"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
 
-const socket = io("http://localhost:5000") // change in production
+const SOCKET_URL = import.meta.env.VITE_API_URL || "http://localhost:5000"
 
 function AgentPendingProperties() {
 
@@ -22,36 +21,26 @@ function AgentPendingProperties() {
 
   const [currentPage, setCurrentPage] = useState(1)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
 
-  // ✅ NEW STATES
   const [search, setSearch] = useState("")
   const [date, setDate] = useState("")
 
+  const [exporting, setExporting] = useState(false)
+
   const propertiesPerPage = 6
 
-  // ===============================
-  // FETCH DATA
-  // ===============================
-  const fetchPendingProperties = async () => {
-    try {
-      setLoading(true)
+  const socketRef = useRef(null)
+  const abortRef = useRef(null)
+  const latestRequest = useRef(0)
+  const debounceRef = useRef(null)
 
-      const res = await api.get("/properties/my?status=PENDING")
-
-      setProperties(res.data.properties || [])
-      setFilteredProperties(res.data.properties || [])
-
-    } catch (err) {
-      toast.error("Failed to load pending properties")
-      setProperties([])
-      setFilteredProperties([])
-    } finally {
-      setLoading(false)
-    }
-  }
-
+  // ================= SOCKET =================
   useEffect(() => {
-    fetchPendingProperties()
+    const socket = io(SOCKET_URL, { withCredentials: true })
+    socketRef.current = socket
+
+    socket.emit("joinAgent")
 
     socket.on("propertyUpdated", () => {
       fetchPendingProperties()
@@ -59,119 +48,174 @@ function AgentPendingProperties() {
 
     return () => {
       socket.off("propertyUpdated")
+      socket.disconnect()
     }
-
   }, [])
 
-  // ===============================
-  // FILTER LOGIC
-  // ===============================
-  useEffect(() => {
+  // ================= FETCH =================
+  const fetchPendingProperties = async (searchVal = search) => {
 
-    let temp = [...properties]
+    if (abortRef.current) abortRef.current.abort()
 
-    // 🔍 SEARCH FILTER
-    if (search) {
-      temp = temp.filter(p =>
-        p.title?.toLowerCase().includes(search.toLowerCase()) ||
-        p.city?.toLowerCase().includes(search.toLowerCase()) ||
-        p.state?.toLowerCase().includes(search.toLowerCase())
-      )
-    }
+    const controller = new AbortController()
+    abortRef.current = controller
 
-    // 📅 DATE FILTER (createdAt)
-    if (date) {
-      temp = temp.filter(p => {
-        if (!p.createdAt) return false
-        const propertyDate = new Date(p.createdAt).toISOString().split("T")[0]
-        return propertyDate === date
+    const requestId = Date.now()
+    latestRequest.current = requestId
+
+    try {
+      setLoading(true)
+      setError("")
+
+      const res = await api.get(`/properties/my`, {
+        params: {
+          status: "PENDING",
+          search: searchVal,
+          date
+        },
+        signal: controller.signal,
+        timeout: 10000
       })
+
+      if (latestRequest.current !== requestId) return
+
+      const data = res.data.properties || []
+
+      setProperties(data)
+      setFilteredProperties(data)
+      setCurrentPage(1)
+
+    } catch (err) {
+      if (err.name === "CanceledError") return
+      if (latestRequest.current !== requestId) return
+
+      toast.error(err?.response?.data?.message || "Failed to load pending properties")
+      setError("Failed to load pending properties")
+      setProperties([])
+      setFilteredProperties([])
+
+    } finally {
+      if (latestRequest.current === requestId) {
+        setLoading(false)
+      }
     }
+  }
 
-    setFilteredProperties(temp)
-    setCurrentPage(1)
+  // ================= DEBOUNCE =================
+  useEffect(() => {
+    clearTimeout(debounceRef.current)
 
-  }, [search, date, properties])
+    debounceRef.current = setTimeout(() => {
+      fetchPendingProperties()
+    }, 400)
 
-  // ===============================
-  // PAGINATION
-  // ===============================
+    return () => clearTimeout(debounceRef.current)
+  }, [search, date])
+
+  // ================= PAGINATION =================
   const indexOfLast = currentPage * propertiesPerPage
   const indexOfFirst = indexOfLast - propertiesPerPage
   const currentProperties = filteredProperties.slice(indexOfFirst, indexOfLast)
 
   const totalPages = Math.ceil(filteredProperties.length / propertiesPerPage)
 
+  const getPageNumbers = () => {
+    const maxVisible = 5
+    let start = Math.max(1, currentPage - 2)
+    let end = Math.min(totalPages, start + maxVisible - 1)
+
+    if (end - start < maxVisible - 1) {
+      start = Math.max(1, end - maxVisible + 1)
+    }
+
+    const range = []
+    for (let i = start; i <= end; i++) range.push(i)
+    return range
+  }
+
   const goToPage = (pageNumber) => {
     setCurrentPage(pageNumber)
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
-  // ===============================
-  // EXPORT FUNCTIONS
-  // ===============================
-  const formatData = () => {
-    return filteredProperties.map(p => ({
-      Title: p.title,
-      Price: p.price,
-      City: p.city,
-      State: p.state,
+  // ================= EXPORT =================
+  const fetchAllData = async () => {
+    try {
+      const res = await api.get(`/properties/my`, {
+        params: {
+          status: "PENDING",
+          search,
+          date,
+          limit: 1000
+        }
+      })
+      return res.data.properties || []
+    } catch {
+      toast.error("Export failed")
+      return []
+    }
+  }
+
+  const formatData = (data) =>
+    data.map(p => ({
+      Title: p.title || "N/A",
+      Price: p.price || "N/A",
+      City: p.city || "N/A",
+      State: p.state || "N/A",
       Status: "Pending"
     }))
-  }
 
-  const exportCSV = () => {
-    const data = formatData()
-    if (data.length === 0) return
+  const handleExport = async (type) => {
+    setExporting(true)
 
-    const csv = [
-      Object.keys(data[0]).join(","),
-      ...data.map(row => Object.values(row).join(","))
-    ].join("\n")
+    const data = formatData(await fetchAllData())
+    if (!data.length) {
+      setExporting(false)
+      return
+    }
 
-    const blob = new Blob([csv], { type: "text/csv" })
-    const url = window.URL.createObjectURL(blob)
+    if (type === "csv") {
+      const csv = [
+        Object.keys(data[0]).join(","),
+        ...data.map(row => Object.values(row).join(","))
+      ].join("\n")
 
-    const a = document.createElement("a")
-    a.href = url
-    a.download = "pending_properties.csv"
-    a.click()
-  }
+      const blob = new Blob([csv])
+      const url = URL.createObjectURL(blob)
 
-  const exportExcel = () => {
-    const data = formatData()
-    if (data.length === 0) return
+      const a = document.createElement("a")
+      a.href = url
+      a.download = "pending_properties.csv"
+      a.click()
+    }
 
-    const ws = XLSX.utils.json_to_sheet(data)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, "Properties")
-    XLSX.writeFile(wb, "pending_properties.xlsx")
-  }
+    if (type === "excel") {
+      const ws = XLSX.utils.json_to_sheet(data)
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, "Properties")
+      XLSX.writeFile(wb, "pending_properties.xlsx")
+    }
 
-  const exportPDF = () => {
-    const data = formatData()
-    if (data.length === 0) return
+    if (type === "pdf") {
+      const doc = new jsPDF()
+      autoTable(doc, {
+        head: [["Title", "Price", "City", "State", "Status"]],
+        body: data.map(item => Object.values(item))
+      })
+      doc.save("pending_properties.pdf")
+    }
 
-    const doc = new jsPDF()
-
-    const tableData = data.map(item => [
-      item.Title,
-      item.Price,
-      item.City,
-      item.State,
-      item.Status
-    ])
-
-    autoTable(doc, {
-      head: [["Title", "Price", "City", "State", "Status"]],
-      body: tableData
-    })
-
-    doc.save("pending_properties.pdf")
+    setExporting(false)
   }
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 px-4 md:px-8 py-6">
+
+      {error && (
+        <div className="bg-red-100 text-red-600 text-center p-3 mb-4 rounded">
+          {error}
+        </div>
+      )}
 
       {/* HEADER */}
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-6">
@@ -182,15 +226,21 @@ function AgentPendingProperties() {
 
         <div className="flex flex-wrap gap-2">
 
-          <button onClick={exportCSV} className="flex items-center gap-2 px-3 py-2 bg-green-600 text-white rounded-lg">
+          <button onClick={() => handleExport("csv")}
+            disabled={exporting}
+            className="flex items-center gap-2 px-3 py-2 bg-green-600 text-white rounded-lg disabled:opacity-50">
             <Download size={16}/> CSV
           </button>
 
-          <button onClick={exportExcel} className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg">
+          <button onClick={() => handleExport("excel")}
+            disabled={exporting}
+            className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg disabled:opacity-50">
             <Download size={16}/> Excel
           </button>
 
-          <button onClick={exportPDF} className="flex items-center gap-2 px-3 py-2 bg-red-600 text-white rounded-lg">
+          <button onClick={() => handleExport("pdf")}
+            disabled={exporting}
+            className="flex items-center gap-2 px-3 py-2 bg-red-600 text-white rounded-lg disabled:opacity-50">
             <Download size={16}/> PDF
           </button>
 
@@ -204,7 +254,7 @@ function AgentPendingProperties() {
         </div>
       </div>
 
-      {/* ✅ FILTER BAR */}
+      {/* FILTER */}
       <div className="bg-white dark:bg-gray-800 p-4 rounded-xl mb-6 flex flex-col md:flex-row gap-4">
 
         <input
@@ -255,7 +305,9 @@ function AgentPendingProperties() {
                 <img
                   src={property.media?.images?.[0] || "/no-image.jpg"}
                   alt={property.title}
-                  className="h-48 w-full object-cover"
+                  loading="lazy"
+                  onError={(e) => (e.target.src = "/no-image.jpg")}
+                  className="h-44 sm:h-48 w-full object-cover"
                 />
 
                 <div className="p-4 space-y-2">
@@ -265,7 +317,7 @@ function AgentPendingProperties() {
                   </h3>
 
                   <p className="text-blue-600 font-bold">
-                    ₹ {property.price?.toLocaleString()}
+                    ₹ {property.price ? Number(property.price).toLocaleString() : "N/A"}
                   </p>
 
                   <p className="text-sm text-gray-600 dark:text-gray-300">
@@ -296,17 +348,17 @@ function AgentPendingProperties() {
                 Prev
               </button>
 
-              {[...Array(totalPages)].map((_, i) => (
+              {getPageNumbers().map(p => (
                 <button
-                  key={i}
-                  onClick={() => goToPage(i + 1)}
+                  key={p}
+                  onClick={() => goToPage(p)}
                   className={`px-4 py-2 rounded ${
-                    currentPage === i + 1
+                    currentPage === p
                       ? "bg-blue-600 text-white"
                       : "bg-gray-300 dark:bg-gray-700"
                   }`}
                 >
-                  {i + 1}
+                  {p}
                 </button>
               ))}
 
@@ -322,6 +374,7 @@ function AgentPendingProperties() {
           )}
         </>
       )}
+
     </div>
   )
 }

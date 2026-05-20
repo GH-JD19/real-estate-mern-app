@@ -1,9 +1,11 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import api from "../../services/api"
-import socket from "../../services/socket"
+import { io } from "socket.io-client"
 import { toast } from "react-toastify"
 import { useNavigate } from "react-router-dom"
 import { Search } from "lucide-react"
+
+const SOCKET_URL = import.meta.env.VITE_API_URL || "http://localhost:5000"
 
 const AdminProperties = () => {
 
@@ -15,48 +17,94 @@ const AdminProperties = () => {
   const [totalPages, setTotalPages] = useState(1)
   const [loading, setLoading] = useState(false)
 
+  const socketRef = useRef(null)
+  const debounceRef = useRef(null)
+  const pageRef = useRef(1)
+  const abortRef = useRef(null)
+
+  // ================= FETCH =================
   const fetchProperties = async (page = 1, showLoader = false) => {
-
     try {
-
       if (showLoader) setLoading(true)
 
-      const res = await api.get(
-        `/properties/admin/all?page=${page}&limit=6&search=${search}`
-      )
+      abortRef.current?.abort()
+      abortRef.current = new AbortController()
 
-      setProperties(res.data?.properties || [])
-      setTotalPages(res.data?.totalPages || 1)
+      let url = `/properties/admin/all?page=${page}&limit=6`
+
+      if (search.trim()) {
+        url += `&search=${encodeURIComponent(search.trim())}`
+      }
+
+      const res = await api.get(url, {
+        signal: abortRef.current.signal
+      })
+
+      const props = Array.isArray(res.data?.properties) ? res.data.properties : []
+      const total = Number(res.data?.totalPages) || 1
+
+      setProperties(props)
+      setTotalPages(total)
       setCurrentPage(page)
+      pageRef.current = page
 
-    } catch {
-      toast.error("Failed to fetch properties")
+    } catch (err) {
+      if (err.name !== "CanceledError") {
+        toast.error("Failed to fetch properties")
+      }
     } finally {
       if (showLoader) setLoading(false)
     }
-
   }
 
+  // ================= INITIAL =================
+  useEffect(() => {
+    fetchProperties(1, true)
+  }, [])
+
+  // ================= SOCKET =================
   useEffect(() => {
 
-    fetchProperties(1, true)
+    const socket = io(SOCKET_URL, { withCredentials: true })
+    socketRef.current = socket
 
-    if (!socket.connected) {
-      socket.connect()
-      socket.emit("joinAdmin")
-    }
+    socket.emit("joinAdmin")
 
     const handleUpdate = () => {
-      fetchProperties(currentPage, false)
+      clearTimeout(debounceRef.current)
+
+      debounceRef.current = setTimeout(() => {
+        fetchProperties(pageRef.current, false)
+      }, 500)
     }
 
     socket.on("dashboard:update", handleUpdate)
 
     return () => {
+      clearTimeout(debounceRef.current)
       socket.off("dashboard:update", handleUpdate)
+      socket.disconnect()
+      abortRef.current?.abort()
     }
 
+  }, [])
+
+  // ================= SEARCH =================
+  useEffect(() => {
+    const delay = setTimeout(() => {
+      fetchProperties(1, true)
+      pageRef.current = 1
+    }, 400)
+
+    return () => clearTimeout(delay)
   }, [search])
+
+  // ================= PAGE SAFETY =================
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      fetchProperties(1)
+    }
+  }, [totalPages])
 
   const getStatusBadge = (status) => {
     switch (status) {
@@ -69,7 +117,7 @@ const AdminProperties = () => {
 
   return (
 
-    <div className="min-h-screen bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-900 dark:to-gray-950 p-4 md:p-6">
+    <div className="min-h-screen p-6">
 
       {/* HEADER */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
@@ -83,17 +131,13 @@ const AdminProperties = () => {
           </p>
         </div>
 
-        {/* SEARCH */}
         <div className="flex items-center bg-white dark:bg-gray-800 rounded-lg px-3 py-2 shadow w-full md:w-72">
           <Search size={16} className="mr-2 text-gray-400" />
           <input
             placeholder="Search property..."
             className="bg-transparent outline-none text-sm w-full"
             value={search}
-            onChange={(e) => {
-              setSearch(e.target.value)
-              setCurrentPage(1)
-            }}
+            onChange={(e) => setSearch(e.target.value)}
           />
         </div>
 
@@ -157,12 +201,29 @@ const AdminProperties = () => {
                       </td>
 
                       <td className="p-3 text-center">
-                        <button
-                          onClick={() => navigate(`/admin/property/${p._id}`)}
-                          className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-xs md:text-sm"
-                        >
-                          View
-                        </button>
+                        <div className="flex justify-center gap-2">
+
+                          <button
+                            onClick={() => navigate(`/admin/property/${p._id}`)}
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-xs md:text-sm"
+                          >
+                            View
+                          </button>
+
+                          {/* ✅ EDIT BUTTON WITH STATUS CONTROL */}
+                          <button
+                            disabled={p.status !== "APPROVED"}
+                            onClick={() => navigate(`/admin/edit-property/${p._id}`)}
+                            className={`px-3 py-1 rounded text-xs md:text-sm text-white ${
+                              p.status === "APPROVED"
+                                ? "bg-green-600 hover:bg-green-700"
+                                : "bg-gray-400 cursor-not-allowed"
+                            }`}
+                          >
+                            Edit
+                          </button>
+
+                        </div>
                       </td>
 
                     </tr>
@@ -187,20 +248,20 @@ const AdminProperties = () => {
         <div className="flex flex-wrap justify-center mt-6 gap-2">
 
           <button
-            disabled={currentPage === 1}
+            disabled={loading || currentPage === 1}
             onClick={() => fetchProperties(currentPage - 1)}
-            className="px-3 py-1 bg-gray-300 rounded text-sm"
+            className="px-3 py-1 bg-gray-300 rounded text-sm disabled:opacity-50"
           >
             Prev
           </button>
 
           {[...Array(totalPages)].map((_, index) => {
-
             const page = index + 1
 
             return (
               <button
                 key={page}
+                disabled={loading}
                 onClick={() => fetchProperties(page)}
                 className={`px-3 py-1 text-sm rounded ${
                   currentPage === page
@@ -211,13 +272,12 @@ const AdminProperties = () => {
                 {page}
               </button>
             )
-
           })}
 
           <button
-            disabled={currentPage === totalPages}
+            disabled={loading || currentPage === totalPages}
             onClick={() => fetchProperties(currentPage + 1)}
-            className="px-3 py-1 bg-gray-300 rounded text-sm"
+            className="px-3 py-1 bg-gray-300 rounded text-sm disabled:opacity-50"
           >
             Next
           </button>

@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react"
 import api from "../../services/api"
+import { toast } from "react-toastify"
 
 const Profile = () => {
 
@@ -9,7 +10,9 @@ const Profile = () => {
   const [preview, setPreview] = useState(null)
   const [message, setMessage] = useState("")
   const [loading, setLoading] = useState(false)
+  const [initialLoading, setInitialLoading] = useState(true)
 
+  const abortRef = useRef(null)
   const fileInputRef = useRef(null)
 
   const [form, setForm] = useState({
@@ -18,27 +21,50 @@ const Profile = () => {
     address: ""
   })
 
-  useEffect(() => {
-    fetchProfile()
-  }, [])
-
+  // ================= FETCH =================
   const fetchProfile = async () => {
-    try {
-      const res = await api.get("/users/profile")
 
-      setUser(res.data.user)
+    if (abortRef.current) abortRef.current.abort()
+
+    const controller = new AbortController()
+    abortRef.current = controller
+
+    try {
+      setInitialLoading(true)
+
+      const res = await api.get("/users/profile", {
+        signal: controller.signal,
+        timeout: 10000
+      })
+
+      const userData = res.data.user
+
+      setUser(userData)
 
       setForm({
-        name: res.data.user.name || "",
-        phone: res.data.user.phone || "",
-        address: res.data.user.address || ""
+        name: userData.name || "",
+        phone: userData.phone || "",
+        address: userData.address || ""
       })
 
     } catch (err) {
-      console.log(err)
+      if (err.name !== "CanceledError") {
+        toast.error("Failed to load profile")
+      }
+    } finally {
+      setInitialLoading(false)
     }
   }
 
+  useEffect(() => {
+    fetchProfile()
+
+    return () => {
+      if (abortRef.current) abortRef.current.abort()
+    }
+  }, [])
+
+  // ================= INPUT =================
   const handleChange = (e) => {
 
     let { name, value } = e.target
@@ -51,80 +77,110 @@ const Profile = () => {
       value = value.replace(/\D/g, "").slice(0, 10)
     }
 
-    setForm({
-      ...form,
+    setForm(prev => ({
+      ...prev,
       [name]: value
-    })
+    }))
   }
 
+  // ================= IMAGE =================
   const handleImage = (e) => {
 
     const file = e.target.files[0]
+    if (!file) return
 
-    if (file) {
-      setImage(file)
-      setPreview(URL.createObjectURL(file))
+    if (!file.type.startsWith("image/")) {
+      toast.error("Only image files allowed")
+      return
     }
 
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Max file size is 2MB")
+      return
+    }
+
+    if (preview) URL.revokeObjectURL(preview)
+
+    setImage(file)
+    setPreview(URL.createObjectURL(file))
   }
 
+  // ================= UPDATE =================
   const handleUpdate = async (e) => {
-
     e.preventDefault()
+    if (loading) return
 
     if (form.phone && form.phone.length !== 10) {
-      alert("Mobile number must be 10 digits")
+      toast.error("Mobile number must be 10 digits")
       return
     }
 
     try {
-
       setLoading(true)
 
       const formData = new FormData()
-
-      formData.append("name", form.name)
+      formData.append("name", form.name.trim())
       formData.append("phone", form.phone)
-      formData.append("address", form.address)
+      formData.append("address", form.address.trim())
 
       if (image) {
         formData.append("photo", image)
       }
 
       const res = await api.put("/users/update-profile", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data"
-        }
+        headers: { "Content-Type": "multipart/form-data" },
+        timeout: 10000
       })
 
-      setMessage(res.data.message || "Profile updated successfully")
+      setMessage(res?.data?.message || "Profile updated successfully")
 
       setEditing(false)
       setImage(null)
+
+      if (preview) URL.revokeObjectURL(preview)
       setPreview(null)
 
       fetchProfile()
 
-      setTimeout(() => {
-        setMessage("")
-      }, 3000)
+      setTimeout(() => setMessage(""), 3000)
 
     } catch (err) {
-      console.log(err)
-      alert(err.response?.data?.message || "Profile update failed")
+      toast.error(
+        err?.response?.data?.message || "Profile update failed"
+      )
     } finally {
       setLoading(false)
     }
-
   }
 
-  if (!user) return <p className="p-6">Loading...</p>
+  // ================= CANCEL =================
+  const handleCancel = () => {
+    setEditing(false)
+    setImage(null)
+
+    if (preview) URL.revokeObjectURL(preview)
+    setPreview(null)
+
+    if (user) {
+      setForm({
+        name: user.name || "",
+        phone: user.phone || "",
+        address: user.address || ""
+      })
+    }
+  }
+
+  // ================= LOADING =================
+  if (initialLoading) {
+    return <p className="p-6 text-center">Loading profile...</p>
+  }
+
+  if (!user) return null
 
   const initials =
     user.name?.split(" ").map(n => n[0]).join("").toUpperCase()
 
   return (
-
     <div className="bg-gray-100 dark:bg-gray-900 min-h-screen px-4 md:px-8 py-6">
 
       <div className="max-w-5xl mx-auto">
@@ -150,11 +206,13 @@ const Profile = () => {
             >
 
               {preview ? (
-                <img src={preview} alt="preview" className="w-full h-full object-cover" />
+                <img src={preview} className="w-full h-full object-cover" />
               ) : user.photo ? (
-                <img src={user.photo} alt="profile" className="w-full h-full object-cover" />
+                <img src={user.photo} className="w-full h-full object-cover" />
               ) : (
-                initials
+                <div className="w-full h-full flex items-center justify-center bg-gray-300 dark:bg-gray-700 text-lg font-semibold">
+                  {initials}
+                </div>
               )}
 
               {editing && (
@@ -187,23 +245,18 @@ const Profile = () => {
 
           </div>
 
-          {/* VIEW MODE */}
+          {/* VIEW */}
           {!editing && (
-
             <div className="grid sm:grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-
               <Info label="Full Name" value={user.name} />
               <Info label="Email" value={user.email} />
               <Info label="Phone" value={user.phone || "Not provided"} />
               <Info label="Address" value={user.address || "Not provided"} />
-
             </div>
-
           )}
 
-          {/* EDIT MODE */}
+          {/* EDIT */}
           {editing && (
-
             <form onSubmit={handleUpdate} className="grid md:grid-cols-2 gap-6 mt-6">
 
               <Input label="Name" name="name" value={form.name} onChange={handleChange} />
@@ -233,17 +286,14 @@ const Profile = () => {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
+                  className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
                 >
                   {loading ? "Saving..." : "Save Changes"}
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => {
-                    setEditing(false)
-                    setPreview(null)
-                  }}
+                  onClick={handleCancel}
                   className="border px-6 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
                   Cancel
@@ -252,7 +302,6 @@ const Profile = () => {
               </div>
 
             </form>
-
           )}
 
         </div>
@@ -260,13 +309,10 @@ const Profile = () => {
       </div>
 
     </div>
-
   )
 }
 
-// ===============================
-// REUSABLE COMPONENTS
-// ===============================
+// ================= COMPONENTS =================
 const Info = ({ label, value }) => (
   <div>
     <p className="text-gray-500 text-sm">{label}</p>

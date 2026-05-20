@@ -1,12 +1,18 @@
-function SectionSkeleton({ height = "150px" }) {
+import React, { memo } from "react"
+
+function SectionSkeleton({ height = "150px", className = "" }) {
   return (
-    <div className="animate-pulse p-4">
+    <div
+      role="status"
+      aria-label="Loading content"
+      className={`animate-pulse p-4 ${className}`}
+    >
       <div
         className="bg-gray-300 dark:bg-gray-700 rounded-xl w-full"
         style={{ height }}
-      ></div>
+      />
     </div>
   )
 }
 
-export default SectionSkeleton
+export default memo(SectionSkeleton)
