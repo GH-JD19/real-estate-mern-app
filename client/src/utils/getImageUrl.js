@@ -1,4 +1,4 @@
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000"
+const BASE_URL = import.meta.env.VITE_API_URL || "https://real-estate-mern-app-98vu.onrender.com"
 
 // 🔹 FALLBACK IMAGE
 const FALLBACK_IMAGE = "/no-image.jpg"

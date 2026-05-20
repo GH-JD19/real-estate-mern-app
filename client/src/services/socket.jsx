@@ -1,7 +1,7 @@
 import { io } from "socket.io-client";
 
 // 🔹 BASE URL (PRODUCTION SAFE)
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const BASE_URL = import.meta.env.VITE_API_URL || "https://real-estate-mern-app-98vu.onrender.com";
 
 // 🔹 TOKEN HELPER
 const getToken = () =>

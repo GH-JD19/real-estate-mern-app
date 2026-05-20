@@ -2,7 +2,7 @@ import axios from "axios"
 import { loaderRef } from "../context/LoaderRef"
 
 // 🔹 BASE URL (ENV SAFE)
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000/api"
+const API_BASE = import.meta.env.VITE_API_URL || "https://real-estate-mern-app-98vu.onrender.com/api"
 
 // 🔹 AXIOS INSTANCE
 const api = axios.create({

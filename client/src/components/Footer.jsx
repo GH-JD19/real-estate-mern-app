@@ -11,7 +11,7 @@ function Footer() {
   const [loading, setLoading] = useState(false)
 
   // ✅ API Base URL (Production Ready)
-  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000"
+  const API_URL = import.meta.env.VITE_API_URL || "https://real-estate-mern-app-98vu.onrender.com"
 
   const linkClass =
     "block text-sm hover:text-blue-600 hover:translate-x-1 hover:font-medium transition-all duration-200"

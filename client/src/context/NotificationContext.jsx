@@ -5,7 +5,7 @@ import toast from "react-hot-toast"
 
 const NotificationContext = createContext()
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000/api"
+const API_BASE = import.meta.env.VITE_API_URL || "https://real-estate-mern-app-98vu.onrender.com/api"
 
 export const NotificationProvider = ({ children }) => {
 

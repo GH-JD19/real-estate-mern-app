@@ -4,7 +4,7 @@ import axios from "axios"
 // CONFIG
 // ==============================
 const BASE_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:5000/api"
+  import.meta.env.VITE_API_URL || "https://real-estate-mern-app-98vu.onrender.com/api"
 
 const API = axios.create({
   baseURL: BASE_URL,

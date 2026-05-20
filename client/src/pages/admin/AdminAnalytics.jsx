@@ -20,7 +20,7 @@ import { saveAs } from "file-saver"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
 
-const SOCKET_URL = import.meta.env.VITE_API_URL || "http://localhost:5000"
+const SOCKET_URL = import.meta.env.VITE_API_URL || "https://real-estate-mern-app-98vu.onrender.com"
 
 const months = [
   "Jan","Feb","Mar","Apr","May","Jun",
